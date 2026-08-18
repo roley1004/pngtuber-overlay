@@ -11,14 +11,20 @@ export function TwitchChat({ targetChannel, isOverlayMode }) {
       client.connect().catch(console.error)
       
       client.on('message', (channel, tags, message) => {
-        const messageId = Date.now() + Math.random()
+        // Usamos el ID único de Twitch (o generamos uno de respaldo)
+        const messageId = tags.id || (Date.now() + Math.random().toString())
         
-        setMessages(prev => [...prev, { 
-          id: messageId, 
-          user: tags['display-name'], 
-          text: message, 
-          isFading: false 
-        }])
+        setMessages(prev => {
+          // Si el mensaje ya existe en la lista, lo ignoramos para evitar duplicados
+          if (prev.some(msg => msg.id === messageId)) return prev;
+          
+          return [...prev, { 
+            id: messageId, 
+            user: tags['display-name'], 
+            text: message, 
+            isFading: false 
+          }]
+        })
         
         // Temporizador 1: Iniciar el desvanecimiento a los 7 segundos (7000 ms)
         const fadeTimer = setTimeout(() => {

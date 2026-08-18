@@ -1,16 +1,19 @@
-# React + Vite
+# Proyecto PNGTuber Interactivo (OBS + Twitch)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación web ligera para streamers que funciona como un avatar reactivo a la voz y al chat de Twitch, diseñado para ejecutarse nativamente en la Fuente de Navegador (Browser Source) de OBS con latencia y consumo de recursos mínimos.
 
-Currently, two official plugins are available:
+## 🛠️ Tecnologías Clave
+* **React + Vite:** Motor principal de la interfaz y la lógica.
+* **obs-websocket-js:** Conexión local en tiempo real con OBS (puerto 4455).
+* **tmi.js:** Conexión al chat de Twitch en tiempo real (sin autenticación requerida).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🧩 Arquitectura de Componentes (`src/components/`)
+* `App.jsx`: Maneja el estado global, el LocalStorage y decide qué modo mostrar.
+* `Avatar.jsx`: Renderiza la imagen actual (idle, talk, blink) y la física del salto al hablar.
+* `TwitchChat.jsx`: Conexión aislada a tmi.js; dibuja las burbujas flotantes temporales.
+* `SettingsPanel.jsx`: Interfaz de usuario, autodescubrimiento de micrófonos, sensibilidad y generador de URL.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## ⚙️ Sistema de Modos (Detección por URL)
+La aplicación lee los parámetros de la URL (`window.location.search`) para cambiar su comportamiento:
+1. **Modo Configuración:** Entrar a la URL principal sin parámetros te permite ajustar micrófonos, imágenes y generar tu enlace personalizado.
+2. **Modo Overlay (OBS):** Agregar `?canal=tu_usuario` a la URL oculta toda la interfaz para usarse directamente como Fuente de Navegador en OBS.

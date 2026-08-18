@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import OBSWebSocket from 'obs-websocket-js'
 import { Avatar } from './components/Avatar'
 import { TwitchChat } from './components/TwitchChat'
@@ -7,7 +7,18 @@ import './App.css'
 
 function App() {
   const urlParams = new URLSearchParams(window.location.search)
-  const targetChannel = urlParams.get('canal')
+  const encodedChannel = urlParams.get('c')
+  
+  // Decodificamos el canal para Twitch (si existe en la URL encriptada)
+  const targetChannel = useMemo(() => {
+    if (!encodedChannel) return null
+    try {
+      return atob(encodedChannel)
+    } catch (e) {
+      return null
+    }
+  }, [encodedChannel])
+
   const isOverlayMode = Boolean(targetChannel)
 
   const [password, setPassword] = useState(localStorage.getItem('obs-pngtuber-pass') || '')
@@ -41,22 +52,25 @@ function App() {
     try { obs.current.disconnect() } catch (e) {}
     setIsConnected(false)
     setPassword('')
-    setTwitchInput('')
-    setGeneratedLink('')
     localStorage.removeItem('obs-pngtuber-pass')
-    localStorage.removeItem('obs-pngtuber-twitch')
   }
 
   const handleGenerateURL = () => {
-    localStorage.setItem('obs-pngtuber-pass', password)
+    if (!twitchInput) return
     localStorage.setItem('obs-pngtuber-twitch', twitchInput)
-    setGeneratedLink(`${window.location.origin}?canal=${twitchInput}`)
+    // Encriptamos el nombre del canal en texto seguro (Base64)
+    const encryptedChannel = btoa(twitchInput)
+    setGeneratedLink(`${window.location.origin}?c=${encryptedChannel}`)
   }
 
   const connectToOBS = async () => {
+    if (!password) return
     try {
+      obs.current.removeAllListeners('InputVolumeMeters')
       await obs.current.connect('ws://127.0.0.1:4455', password, { eventSubscriptions: 65537 })
+      localStorage.setItem('obs-pngtuber-pass', password)
       setIsConnected(true)
+      
       obs.current.on('InputVolumeMeters', (data) => {
         let maxVolume = 0
         let newMicsFound = false
@@ -79,11 +93,15 @@ function App() {
         setIsTalking(maxVolume > sensRef.current)
       })
     } catch (error) {
-      if (!isOverlayMode) alert("Error al conectar a OBS.")
+      if (!isOverlayMode) alert("Error al conectar a OBS. Verifica la contraseña.")
     }
   }
 
-  useEffect(() => { if (password) connectToOBS() }, [])
+  useEffect(() => { 
+    if (password && !isOverlayMode) {
+      connectToOBS()
+    } 
+  }, [])
 
   useEffect(() => {
     const handleClickOutside = () => setIsSelectOpen(false)
@@ -134,6 +152,10 @@ function App() {
     return images.idle
   }
 
+  const memoizedTwitchChat = useMemo(() => (
+    <TwitchChat targetChannel={targetChannel} isOverlayMode={isOverlayMode} />
+  ), [targetChannel, isOverlayMode])
+
   return (
     <div className={isOverlayMode ? 'overlay-mode' : ''} style={{width: '100%', height: '100%'}}>
       <SettingsPanel 
@@ -159,7 +181,7 @@ function App() {
         handleImageUpload={handleImageUpload}
         handleLogout={handleLogout}
       />
-      <TwitchChat targetChannel={targetChannel} isOverlayMode={isOverlayMode} />
+      {memoizedTwitchChat}
       <Avatar isTalking={isTalking} currentImage={getCurrentImage()} />
     </div>
   )
