@@ -176,9 +176,9 @@ export function SettingsPanel({
           {activeTab === 'chat' && (
             <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
               <div className="input-group">
-                <label className="title" style={{marginBottom: '5px', display: 'block'}}>Canal de Twitch</label>
+                <label className="title" style={{marginBottom: '5px', display: 'block'}}>Canal de Twitch (Opcional)</label>
                 <p style={{fontSize: '11px', color: '#ccc', margin: '0 0 10px 0'}}>
-                  Ingresa tu usuario de Twitch y luego presiona el botón verde de arriba para generar tu URL encriptada.
+                  Escribe tu canal aquí para probar el chat detrás de este panel. Para usarlo en OBS, asegúrate de generar un enlace nuevo arriba.
                 </p>
                 <input 
                   type="text" 
