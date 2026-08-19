@@ -9,17 +9,8 @@ function App() {
   const urlParams = new URLSearchParams(window.location.search)
   const encodedChannel = urlParams.get('c')
   
-  // Decodificamos el canal para Twitch (si existe en la URL encriptada)
-  const targetChannel = useMemo(() => {
-    if (!encodedChannel) return null
-    try {
-      return atob(encodedChannel)
-    } catch (e) {
-      return null
-    }
-  }, [encodedChannel])
-
-  const isOverlayMode = Boolean(targetChannel)
+  // El modo overlay se activa si tiene la variable overlay o si tiene un canal por URL
+  const isOverlayMode = urlParams.has('overlay') || Boolean(encodedChannel)
 
   const [password, setPassword] = useState(localStorage.getItem('obs-pngtuber-pass') || '')
   const [twitchInput, setTwitchInput] = useState(localStorage.getItem('obs-pngtuber-twitch') || '')
@@ -39,6 +30,19 @@ function App() {
     talkBlink: localStorage.getItem('obs-pngtuber-img-talkBlink') || '/talk_blink.png'
   })
 
+  // El canal usa la URL si está en OBS, o el texto en vivo del panel para hacer pruebas
+  const targetChannel = useMemo(() => {
+    if (isOverlayMode) {
+      if (!encodedChannel) return null
+      try {
+        return atob(encodedChannel)
+      } catch (e) {
+        return null
+      }
+    }
+    return twitchInput || null
+  }, [encodedChannel, isOverlayMode, twitchInput])
+
   const obs = useRef(new OBSWebSocket())
   const knownMics = useRef(new Set())
   const hudTimeout = useRef(null)
@@ -56,11 +60,13 @@ function App() {
   }
 
   const handleGenerateURL = () => {
-    if (!twitchInput) return
     localStorage.setItem('obs-pngtuber-twitch', twitchInput)
-    // Encriptamos el nombre del canal en texto seguro (Base64)
-    const encryptedChannel = btoa(twitchInput)
-    setGeneratedLink(`${window.location.origin}?c=${encryptedChannel}`)
+    let url = `${window.location.origin}?overlay=1` // Garantiza que sea modo overlay siempre
+    if (twitchInput) {
+      const encryptedChannel = btoa(twitchInput)
+      url += `&c=${encryptedChannel}`
+    }
+    setGeneratedLink(url)
   }
 
   const connectToOBS = async () => {
