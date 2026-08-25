@@ -1,0 +1,46 @@
+/* ESTILOS DE RENDERIZADO DEL CHAT */
+.twitch-chat-container { 
+  width: 100%; 
+  height: 100%; 
+  display: flex; 
+  flex-direction: column; 
+  justify-content: flex-end; 
+  padding: 20px; 
+  box-sizing: border-box; 
+  overflow: hidden; 
+}
+.chat-message { 
+  margin-bottom: 12px; 
+  word-wrap: break-word; 
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.8); 
+}
+.chat-badges { 
+  display: inline-flex; 
+  align-items: center; 
+  gap: 4px; 
+  margin-right: 6px; 
+}
+.badge { font-size: 0.9em; }
+
+@keyframes fadeOutMessage {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+/* TEMAS DEL CHAT */
+.theme-default .chat-message { padding: 4px 8px; }
+.theme-clean .chat-message { 
+  background: rgba(0, 0, 0, 0.4); 
+  padding: 8px 12px; 
+  border-radius: 12px; 
+  border-left: 4px solid var(--primary); 
+  backdrop-filter: blur(4px); 
+}
+.theme-neon .chat-message { 
+  background: rgba(20, 20, 20, 0.7); 
+  padding: 8px 12px; 
+  border-radius: 8px; 
+  border: 1px solid rgba(255, 255, 255, 0.2); 
+  box-shadow: 0 0 10px rgba(140, 214, 155, 0.5); 
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); 
+}
