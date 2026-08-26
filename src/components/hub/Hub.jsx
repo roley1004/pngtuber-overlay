@@ -52,7 +52,7 @@ export const Hub = ({
         <div className="hub-header-content">
           <div className="hub-logo">
             <img src="/yoshi-egg.png" alt="Yoshi Egg Logo" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
-            <span className="logo-text">StreamTools</span>
+            <span className="logo-text">YoshiTools</span>
           </div>
         </div>
       </header>
