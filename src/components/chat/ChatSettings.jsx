@@ -3,9 +3,23 @@ import React, { useState } from 'react'
 export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, defaultConfig, chatPreview }) {
   const [newBlacklistWord, setNewBlacklistWord] = useState('')
   const [activeTab, setActiveTab] = useState('html')
+  
+  const [isChannelLocked, setIsChannelLocked] = useState(!!twitchInput)
+  const [previewMode, setPreviewMode] = useState('test')
+  const [clearTrigger, setClearTrigger] = useState(0)
 
   const updateConfig = (key, value) => setConfig(prev => ({ ...prev, [key]: value }))
   const updateNestedConfig = (parent, key, value) => setConfig(prev => ({ ...prev, [parent]: { ...prev[parent], [key]: value } }))
+
+  const handleThemeChange = (e) => {
+    const newTheme = e.target.value;
+    let newFont = 'Inter, sans-serif';
+    if (newTheme === 'clean') newFont = "'Baloo 2', cursive";
+    if (newTheme === 'neon') newFont = "'Orbitron', sans-serif";
+    if (newTheme === 'pixel') newFont = "'Press Start 2P', cursive";
+    
+    setConfig(prev => ({ ...prev, theme: newTheme, fontFamily: newFont }));
+  };
 
   const handleAddBlacklist = (e) => {
     if (e.key === 'Enter' && newBlacklistWord.trim()) {
@@ -22,25 +36,64 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
 
   return (
     <div className="chat-layout-wrapper">
-      
-      {/* SECCIÓN SUPERIOR: CONFIGURACIÓN Y VISTA PREVIA FLOTANTE */}
       <div className="chat-top-row">
         
-        {/* Columna Izquierda (Ajustes Visuales e Insignias) */}
         <div className="chat-settings-col">
-          
-          {/* Apariencia */}
           <div className="inline-input-group">
             <label className="input-label">Canal Twitch</label>
-            <input type="text" className="text-input" value={twitchInput} onChange={(e) => setTwitchInput(e.target.value)} placeholder="ej. el_gran_streamer" />
+            <div style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="text" 
+                  className="text-input" 
+                  value={twitchInput} 
+                  onChange={(e) => setTwitchInput(e.target.value)} 
+                  placeholder="ej. el_gran_streamer" 
+                  disabled={isChannelLocked}
+                  style={{ 
+                    backgroundColor: isChannelLocked ? '#e0e0e0' : '#fff', 
+                    color: isChannelLocked ? '#666' : '#000',
+                    cursor: isChannelLocked ? 'not-allowed' : 'text'
+                  }}
+                />
+                <button
+                  className="icon-btn"
+                  onClick={() => setIsChannelLocked(!isChannelLocked)}
+                  title={isChannelLocked ? "Editar Canal" : "Confirmar Canal"}
+                  style={{
+                    backgroundColor: isChannelLocked ? '#ff9800' : '#4caf50',
+                    color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                >
+                  {isChannelLocked ? '✏️' : '✔️'}
+                </button>
+              </div>
+              {isChannelLocked && twitchInput && (
+                <span style={{ fontSize: '12px', color: '#4caf50', fontWeight: 'bold' }}>
+                  ✓ Chat habilitado para {twitchInput}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="inline-input-group">
             <label className="input-label">Tema</label>
-            <select className="text-input" value={config.theme} onChange={e => updateConfig('theme', e.target.value)}>
+            <select className="text-input" value={config.theme} onChange={handleThemeChange}>
               <option value="default">Clásico Oscuro</option>
               <option value="clean">Burbujas Limpias</option>
               <option value="neon">Cyber Neon</option>
+              <option value="pixel">8-Bit Retro</option>
+            </select>
+          </div>
+
+          <div className="inline-input-group">
+            <label className="input-label">Fuente</label>
+            <select className="text-input" value={config.fontFamily} onChange={e => updateConfig('fontFamily', e.target.value)}>
+              <option value="Inter, sans-serif">Inter (Moderno)</option>
+              <option value="'Baloo 2', cursive">Baloo 2 (Redondeada)</option>
+              <option value="'Orbitron', sans-serif">Orbitron (Futurista)</option>
+              <option value="'Press Start 2P', cursive">Press Start 2P (8-Bit)</option>
             </select>
           </div>
 
@@ -71,7 +124,6 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
             </div>
           </div>
 
-          {/* Insignias y Emotes (Grid 2 columnas) */}
           <div className="grid-2-col" style={{marginTop: '16px'}}>
             <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
               <h4 className="section-title" style={{fontSize: '16px', marginBottom: '8px'}}>Icons / Insignias</h4>
@@ -82,6 +134,10 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
               <label className="checkbox-label">
                 <input type="checkbox" checked={config.badges.mod} onChange={e => updateNestedConfig('badges', 'mod', e.target.checked)} />
                 <span className="custom-checkbox"></span> Mostrar Insignia Moderador
+              </label>
+              <label className="checkbox-label">
+                <input type="checkbox" checked={config.badges.vip} onChange={e => updateNestedConfig('badges', 'vip', e.target.checked)} />
+                <span className="custom-checkbox"></span> Mostrar Insignia VIP
               </label>
               <label className="checkbox-label">
                 <input type="checkbox" checked={config.badges.sub} onChange={e => updateNestedConfig('badges', 'sub', e.target.checked)} />
@@ -119,18 +175,48 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
           </div>
         </div>
 
-        {/* Columna Derecha (Preview del Chat interactivo) */}
-        <div className="chat-preview-col" style={{ backgroundColor: config.previewBg }}>
-          {chatPreview}
+        <div className="chat-preview-col" style={{ backgroundColor: config.previewBg, display: 'flex', flexDirection: 'column' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', backgroundColor: '#333', borderRadius: '6px', overflow: 'hidden' }}>
+              <button 
+                onClick={() => setPreviewMode('test')}
+                style={{ padding: '6px 12px', border: 'none', backgroundColor: previewMode === 'test' ? '#4caf50' : 'transparent', color: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: previewMode === 'test' ? 'bold' : 'normal' }}
+              >Prueba</button>
+              <button 
+                onClick={() => setPreviewMode('live')}
+                style={{ padding: '6px 12px', border: 'none', backgroundColor: previewMode === 'live' ? '#4caf50' : 'transparent', color: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: previewMode === 'live' ? 'bold' : 'normal' }}
+              >Chat del Canal</button>
+            </div>
+            
+            {previewMode === 'live' && (
+              <button 
+                onClick={() => setClearTrigger(prev => prev + 1)}
+                style={{ padding: '6px 12px', border: 'none', backgroundColor: '#f44336', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >🗑️ Limpiar Chat</button>
+            )}
+          </div>
+
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            {React.cloneElement(chatPreview, { previewMode, clearTrigger })}
+          </div>
         </div>
       </div>
 
-      {/* SECCIÓN INFERIOR: MODERACIÓN Y AVANZADO */}
       <div className="chat-bottom-row">
         <div className="grid-2-col">
           
           <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
             <h3 className="section-title">Comportamiento</h3>
+            
+            <div className="inline-input-group" style={{marginTop: '8px'}}>
+              <label className="input-label">Despliegue de Mensajes</label>
+              <select className="text-input" value={config.direction || 'bottom-up'} onChange={e => updateConfig('direction', e.target.value)}>
+                <option value="bottom-up">Abajo para Arriba (Por Defecto)</option>
+                <option value="top-down">Arriba para Abajo</option>
+              </select>
+            </div>
+
             <div className="inline-input-group" style={{marginTop: '8px'}}>
               <label className="input-label">Ocultar mensaje después de</label>
               <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
@@ -170,7 +256,6 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
           </div>
         </div>
 
-        {/* Habilitar HTML/CSS */}
         <div style={{marginTop: '24px'}}>
           <div style={{display: 'flex', alignItems: 'center', gap: '24px'}}>
             <h3 className="section-title">Habilitar HTML/CSS personalizado</h3>
