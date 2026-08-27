@@ -17,8 +17,12 @@ export function useChatSettings({ isChatOverlay }) {
       const stored = localStorage.getItem('obs-pngtuber-chatconfig');
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Aseguramos que las nuevas opciones (como vip) se agreguen si no existían en el guardado anterior
-        return { ...defaultChatConfig, ...parsed, badges: { ...defaultChatConfig.badges, ...(parsed.badges || {}) } };
+        return { 
+          ...defaultChatConfig, 
+          ...parsed, 
+          badges: { ...defaultChatConfig.badges, ...(parsed.badges || {}) },
+          emotes: { ...defaultChatConfig.emotes, ...(parsed.emotes || {}) }
+        };
       }
       return defaultChatConfig;
     } catch (e) { return defaultChatConfig; }

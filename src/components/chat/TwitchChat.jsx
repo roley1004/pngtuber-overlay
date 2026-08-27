@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import tmi from 'tmi.js';
 import './TwitchChat.css';
 
@@ -11,6 +11,17 @@ const DEFAULT_BADGES = {
   turbo: { "1": "https://static-cdn.jtvnw.net/badges/v1/bd444ec6-8f34-4bf9-91f4-af1e3428d80f/3" },
   premium: { "1": "https://static-cdn.jtvnw.net/badges/v1/bbbe0db0-a598-423e-86d0-f9fb98ca1933/3" },
   bits: { "1": "https://static-cdn.jtvnw.net/badges/v1/73b5c3fb-24f9-4a82-a852-2f475b59411c/3", "1000": "https://static-cdn.jtvnw.net/badges/v1/0d85a29e-79ad-4c63-a285-3acd2c66f2ba/3" }
+};
+
+const getContrastColor = (hexColor) => {
+  if (!hexColor || typeof hexColor !== 'string') return '#ffffff';
+  const cleanHex = hexColor.replace('#', '');
+  if (cleanHex.length !== 6) return '#ffffff';
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness >= 128 ? '#111111' : '#ffffff';
 };
 
 const BadgeImg = ({ src, fallback, title }) => {
@@ -35,9 +46,9 @@ const BadgeImg = ({ src, fallback, title }) => {
 };
 
 const staticDummyMessages = [
-  { id: '1', username: 'Streamer', roles: { broadcaster: true, platform: true }, rawBadges: { broadcaster: '1' }, color: '#FF5733', message: '¡Bienvenidos al stream!' },
-  { id: '2', username: 'ModVigilante', roles: { mod: true, platform: true }, rawBadges: { moderator: '1' }, color: '#33FF57', message: 'Recuerden leer las reglas. !reglas' },
-  { id: '3', username: 'VIPFan', roles: { vip: true, platform: true }, rawBadges: { vip: '1' }, color: '#FF33F5', message: '¡Qué buen directo, soy VIP!' },
+  { id: '1', username: 'Streamer', roles: { broadcaster: true, platform: true }, rawBadges: { broadcaster: '1' }, color: '#FF5733', message: '¡Bienvenidos al stream! KEKW catJAM' },
+  { id: '2', username: 'ModVigilante', roles: { mod: true, platform: true }, rawBadges: { moderator: '1' }, color: '#33FF57', message: 'Recuerden leer las reglas. !reglas LUL' },
+  { id: '3', username: 'VIPFan', roles: { vip: true, platform: true }, rawBadges: { vip: '1' }, color: '#FF33F5', message: '¡Qué buen directo, soy VIP! Pog' },
   { id: '4', username: 'SubFiel', roles: { subscriber: true, platform: true }, rawBadges: { subscriber: '1' }, color: '#3357FF', message: 'Llevo meses suscrito 🤩' },
   { id: '5', username: 'TurboUser', roles: { turbo: true, platform: true }, rawBadges: { turbo: '1' }, color: '#FF0000', message: 'Disfrutando el stream sin anuncios.' },
   { id: '6', username: 'PrimeUser', roles: { prime: true, platform: true }, rawBadges: { premium: '1' }, color: '#0088FF', message: 'Apoyando con Prime Gaming.' },
@@ -48,6 +59,16 @@ const staticDummyMessages = [
 export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode = 'live', clearTrigger = 0 }) {
   const [messages, setMessages] = useState([]);
   const [twitchBadges, setTwitchBadges] = useState(DEFAULT_BADGES);
+  const [emotesMap, setEmotesMap] = useState({});
+  const [isAutoScrollPaused, setIsAutoScrollPaused] = useState(false);
+  
+  const chatContainerRef = useRef(null);
+  const fadeOutRef = useRef(config.fadeOut);
+  const isBottomUp = config.direction !== 'top-down';
+
+  useEffect(() => {
+    fadeOutRef.current = config.fadeOut;
+  }, [config.fadeOut]);
 
   const removeMessage = useCallback((id) => {
     setMessages(prev => prev.filter(msg => msg.id !== id));
@@ -70,10 +91,92 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
           setTwitchBadges(prev => ({ ...prev, ...data.badges }));
         }
       })
-      .catch(() => {
-        // En caso de fallo o en localhost (npm run dev), mantiene los DEFAULT_BADGES cargados
-      }); 
+      .catch(() => {}); 
   }, [targetChannel]);
+
+  useEffect(() => {
+    if (!targetChannel) return;
+    const cleanChannel = targetChannel.replace('#', '').trim().toLowerCase();
+    let isMounted = true;
+
+    const loadExtraEmotes = async () => {
+      const loadedEmotes = {};
+
+      try {
+        if (config.emotes?.bttv !== false) {
+          const bttvGlobal = await fetch('https://api.betterttv.net/3/cached/emotes/global').then(r => r.json()).catch(() => []);
+          if (Array.isArray(bttvGlobal)) {
+            bttvGlobal.forEach(e => { loadedEmotes[e.code] = `https://cdn.betterttv.net/emote/${e.id}/1x`; });
+          }
+        }
+
+        if (config.emotes?.ffz !== false) {
+          const ffzGlobal = await fetch('https://api.frankerfacez.com/v1/set/global').then(r => r.json()).catch(() => null);
+          if (ffzGlobal?.sets) {
+            Object.values(ffzGlobal.sets).forEach(set => {
+              set.emoticons?.forEach(e => {
+                const url = e.urls['1'] || Object.values(e.urls)[0];
+                loadedEmotes[e.name] = url.startsWith('//') ? `https:${url}` : url;
+              });
+            });
+          }
+        }
+
+        if (config.emotes?.seventv !== false) {
+          const svnGlobal = await fetch('https://7tv.io/v3/emote-sets/global').then(r => r.json()).catch(() => null);
+          if (svnGlobal?.emotes) {
+            svnGlobal.emotes.forEach(e => {
+              const hostUrl = e.data?.host?.url;
+              if (hostUrl) loadedEmotes[e.name] = `https:${hostUrl}/1x.webp`;
+            });
+          }
+        }
+
+        const idRes = await fetch(`https://decapi.me/twitch/id/${cleanChannel}`).then(r => r.text()).catch(() => '');
+        const twitchId = idRes.trim();
+
+        if (twitchId && !isNaN(twitchId)) {
+          if (config.emotes?.bttv !== false) {
+            const bttvChan = await fetch(`https://api.betterttv.net/3/cached/users/twitch/${twitchId}`).then(r => r.json()).catch(() => null);
+            if (bttvChan) {
+              [...(bttvChan.channelEmotes || []), ...(bttvChan.sharedEmotes || [])].forEach(e => {
+                loadedEmotes[e.code] = `https://cdn.betterttv.net/emote/${e.id}/1x`;
+              });
+            }
+          }
+
+          if (config.emotes?.seventv !== false) {
+            const svnChan = await fetch(`https://7tv.io/v3/users/twitch/${twitchId}`).then(r => r.json()).catch(() => null);
+            if (svnChan?.emote_set?.emotes) {
+              svnChan.emote_set.emotes.forEach(e => {
+                const hostUrl = e.data?.host?.url;
+                if (hostUrl) loadedEmotes[e.name] = `https:${hostUrl}/1x.webp`;
+              });
+            }
+          }
+        }
+
+        if (config.emotes?.ffz !== false) {
+          const ffzChan = await fetch(`https://api.frankerfacez.com/v1/room/${cleanChannel}`).then(r => r.json()).catch(() => null);
+          if (ffzChan?.sets) {
+            Object.values(ffzChan.sets).forEach(set => {
+              set.emoticons?.forEach(e => {
+                const url = e.urls['1'] || Object.values(e.urls)[0];
+                loadedEmotes[e.name] = url.startsWith('//') ? `https:${url}` : url;
+              });
+            });
+          }
+        }
+
+        if (isMounted) setEmotesMap(loadedEmotes);
+      } catch (err) {
+        console.error("Error al cargar emotes extra:", err);
+      }
+    };
+
+    loadExtraEmotes();
+    return () => { isMounted = false; };
+  }, [targetChannel, config.emotes?.bttv, config.emotes?.ffz, config.emotes?.seventv]);
 
   useEffect(() => {
     if (previewMode === 'test' && !isOverlayMode) return;
@@ -106,16 +209,61 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
           color: tags.color || '#ffffff',
           message: message
         };
-        return [...prev.slice(-49), newMsg];
+        return [...prev.slice(-99), newMsg];
       });
 
-      if (config.fadeOut > 0) {
-        setTimeout(() => removeMessage(msgId), (config.fadeOut + 0.5) * 1000);
+      const currentFadeOut = fadeOutRef.current;
+      if (isOverlayMode && currentFadeOut > 0) {
+        setTimeout(() => removeMessage(msgId), (currentFadeOut + 0.5) * 1000);
       }
     });
 
-    return () => { client.disconnect(); setMessages([]); };
-  }, [targetChannel, isOverlayMode, config.fadeOut, removeMessage, previewMode]);
+    return () => { 
+      client.disconnect().catch(() => {});
+    };
+  }, [targetChannel, isOverlayMode, removeMessage, previewMode]);
+
+  const handleScroll = () => {
+    if (isOverlayMode) return;
+    const el = chatContainerRef.current;
+    if (!el) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    let distanceToEdge = 0;
+
+    if (isBottomUp) {
+      distanceToEdge = scrollHeight - scrollTop - clientHeight;
+    } else {
+      distanceToEdge = scrollTop;
+    }
+
+    if (distanceToEdge > 30) {
+      setIsAutoScrollPaused(true);
+    } else {
+      setIsAutoScrollPaused(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOverlayMode || isAutoScrollPaused) return;
+    const el = chatContainerRef.current;
+    if (el) {
+      setTimeout(() => {
+        el.scrollTop = isBottomUp ? el.scrollHeight : 0;
+      }, 0);
+    }
+  }, [messages, isBottomUp, isAutoScrollPaused, isOverlayMode]);
+
+  const scrollToNewest = () => {
+    setIsAutoScrollPaused(false);
+    const el = chatContainerRef.current;
+    if (el) {
+      el.scrollTo({
+        top: isBottomUp ? el.scrollHeight : 0,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const sourceMessages = (!isOverlayMode && previewMode === 'test') ? staticDummyMessages : messages;
 
@@ -126,11 +274,11 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     return true;
   });
 
-  const isStaticTest = !isOverlayMode && previewMode === 'test';
-  const shouldFadeOut = isStaticTest ? false : (config.fadeOut > 0);
-  const isBottomUp = config.direction !== 'top-down';
   const displayMessages = isBottomUp ? filteredMessages : [...filteredMessages].reverse();
-  const justifyContent = isBottomUp ? 'flex-end' : 'flex-start';
+  const shouldFadeOut = isOverlayMode ? (config.fadeOut > 0) : false;
+
+  const buttonTextColor = getContrastColor(config.previewBg || '#333333');
+  const buttonBorderColor = buttonTextColor === '#111111' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.6)';
 
   const getBadgeSrc = (msg, setId) => {
     const targetVersion = msg.rawBadges?.[setId];
@@ -159,49 +307,123 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     return setBadges[firstAvailableKey] || null;
   };
 
-  return (
-    <div className="twitch-chat-container" style={{ 
-      fontSize: `${config.fontSize}px`, color: config.textColor, fontFamily: config.fontFamily || 'Inter, sans-serif',
-      height: isOverlayMode ? '100vh' : '100%', width: isOverlayMode ? '100vw' : '100%',
-      display: 'flex', flexDirection: 'column', justifyContent: justifyContent,
-      overflow: 'hidden', gap: '4px', boxSizing: 'border-box', padding: isOverlayMode ? '10px' : '0'
-    }}>
-      <style>
-        {`
-          @keyframes forceFadeOutAnim { 0% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-5px); } }
-          .chat-fade-active { animation-fill-mode: forwards !important; }
-        `}
-      </style>
-      {config.isAdvanced && config.customCSS && <style>{config.customCSS}</style>}
-
-      {displayMessages.map(msg => {
-        const animationStyle = shouldFadeOut ? { animation: `forceFadeOutAnim ${config.fadeOut}s forwards` } : {};
-
-        if (config.isAdvanced && config.customHTML && config.customHTML.includes('{message}')) {
-          const customRender = config.customHTML
-            .replace(/{username}/g, `<span style="color: ${msg.color}">${msg.username}</span>`)
-            .replace(/{message}/g, msg.message);
-            
-          return <div key={msg.id} className={`chat-message theme-${config.theme} ${shouldFadeOut ? 'chat-fade-active' : ''}`} style={animationStyle} dangerouslySetInnerHTML={{ __html: customRender }} />;
-        }
-
+  const renderParsedMessage = (text) => {
+    if (!text) return null;
+    const words = text.split(' ');
+    return words.map((word, idx) => {
+      const emoteUrl = emotesMap[word];
+      const isLast = idx === words.length - 1;
+      if (emoteUrl) {
         return (
-          <div key={msg.id} className={`chat-message theme-${config.theme} ${shouldFadeOut ? 'chat-fade-active' : ''}`} style={animationStyle}>
-            <span className="chat-badges">
-              {config.badges.platform && msg.roles.platform && <BadgeImg src="https://cdn-icons-png.flaticon.com/128/5968/5968819.png" fallback="🟣" title="Twitch" />}
-              {msg.roles.broadcaster && <BadgeImg src={getBadgeSrc(msg, 'broadcaster')} fallback="🎥" title="Broadcaster" />}
-              {config.badges.mod && msg.roles.mod && <BadgeImg src={getBadgeSrc(msg, 'moderator')} fallback="🛡️" title="Moderador" />}
-              {config.badges.vip && msg.roles.vip && <BadgeImg src={getBadgeSrc(msg, 'vip')} fallback="💎" title="VIP" />}
-              {config.badges.sub && msg.roles.subscriber && <BadgeImg src={msg.rawBadges?.founder ? (getBadgeSrc(msg, 'founder') || getBadgeSrc(msg, 'subscriber')) : getBadgeSrc(msg, 'subscriber')} fallback="⭐" title="Suscriptor" />}
-              {config.badges.turbo && msg.roles.turbo && <BadgeImg src={getBadgeSrc(msg, 'turbo')} fallback="🔋" title="Turbo" />}
-              {config.badges.prime && msg.roles.prime && <BadgeImg src={getBadgeSrc(msg, 'premium')} fallback="👑" title="Prime" />}
-              {config.badges.bits && msg.roles.bits && <BadgeImg src={getBadgeSrc(msg, 'bits')} fallback="🪙" title="Bits" />}
-            </span>
-            <span className="chat-username" style={{ color: msg.color, fontWeight: 'bold', marginRight: '6px' }}>{msg.username}:</span>
-            <span className="chat-text">{msg.message}</span>
-          </div>
+          <React.Fragment key={idx}>
+            <img 
+              src={emoteUrl} 
+              alt={word} 
+              title={word} 
+              style={{ height: '1.3em', width: 'auto', verticalAlign: 'middle', margin: '0 2px' }} 
+            />
+            {!isLast && ' '}
+          </React.Fragment>
         );
-      })}
+      }
+      return word + (!isLast ? ' ' : '');
+    });
+  };
+
+  return (
+    <div style={{ position: 'relative', height: '100%', width: '100%', overflow: 'hidden' }}>
+      <div 
+        ref={chatContainerRef}
+        onScroll={handleScroll}
+        className="twitch-chat-container" 
+        style={{ 
+          fontSize: `${config.fontSize}px`, color: config.textColor, fontFamily: config.fontFamily || 'Inter, sans-serif',
+          height: isOverlayMode ? '100vh' : '100%', width: isOverlayMode ? '100vw' : '100%',
+          display: 'flex', flexDirection: 'column', 
+          overflowY: isOverlayMode ? 'hidden' : 'auto', 
+          overflowX: 'hidden', gap: '4px', boxSizing: 'border-box', padding: isOverlayMode ? '10px' : '0',
+          scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.3) transparent'
+        }}>
+        <style>
+          {`
+            @keyframes forceFadeOutAnim { 0% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-5px); } }
+            .chat-fade-active { animation-fill-mode: forwards !important; }
+            .twitch-chat-container::-webkit-scrollbar { width: 6px; }
+            .twitch-chat-container::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.3); border-radius: 10px; }
+          `}
+        </style>
+        {config.isAdvanced && config.customCSS && <style>{config.customCSS}</style>}
+
+        {isBottomUp && <div style={{ flexGrow: 1, minHeight: '10px' }}></div>}
+
+        {displayMessages.map(msg => {
+          const animationStyle = shouldFadeOut ? { animation: `forceFadeOutAnim ${config.fadeOut}s forwards` } : {};
+
+          if (config.isAdvanced && config.customHTML && config.customHTML.includes('{message}')) {
+            const parsedTextHtml = msg.message.split(' ').map(w => {
+              return emotesMap[w] 
+                ? `<img src="${emotesMap[w]}" alt="${w}" title="${w}" style="height: 1.3em; vertical-align: middle; margin: 0 2px;" />` 
+                : w;
+            }).join(' ');
+
+            const customRender = config.customHTML
+              .replace(/{username}/g, `<span style="color: ${msg.color}">${msg.username}</span>`)
+              .replace(/{message}/g, parsedTextHtml);
+              
+            return <div key={msg.id} className={`chat-message theme-${config.theme} ${shouldFadeOut ? 'chat-fade-active' : ''}`} style={animationStyle} dangerouslySetInnerHTML={{ __html: customRender }} />;
+          }
+
+          return (
+            <div key={msg.id} className={`chat-message theme-${config.theme} ${shouldFadeOut ? 'chat-fade-active' : ''}`} style={animationStyle}>
+              <span className="chat-badges">
+                {config.badges.platform && msg.roles.platform && <BadgeImg src="https://cdn-icons-png.flaticon.com/128/5968/5968819.png" fallback="🟣" title="Twitch" />}
+                {msg.roles.broadcaster && <BadgeImg src={getBadgeSrc(msg, 'broadcaster')} fallback="🎥" title="Broadcaster" />}
+                {config.badges.mod && msg.roles.mod && <BadgeImg src={getBadgeSrc(msg, 'moderator')} fallback="🛡️" title="Moderador" />}
+                {config.badges.vip && msg.roles.vip && <BadgeImg src={getBadgeSrc(msg, 'vip')} fallback="💎" title="VIP" />}
+                {config.badges.sub && msg.roles.subscriber && <BadgeImg src={msg.rawBadges?.founder ? (getBadgeSrc(msg, 'founder') || getBadgeSrc(msg, 'subscriber')) : getBadgeSrc(msg, 'subscriber')} fallback="⭐" title="Suscriptor" />}
+                {config.badges.turbo && msg.roles.turbo && <BadgeImg src={getBadgeSrc(msg, 'turbo')} fallback="🔋" title="Turbo" />}
+                {config.badges.prime && msg.roles.prime && <BadgeImg src={getBadgeSrc(msg, 'premium')} fallback="👑" title="Prime" />}
+                {config.badges.bits && msg.roles.bits && <BadgeImg src={getBadgeSrc(msg, 'bits')} fallback="🪙" title="Bits" />}
+              </span>
+              <span className="chat-username" style={{ color: msg.color, fontWeight: 'bold', marginRight: '6px' }}>{msg.username}:</span>
+              <span className="chat-text">{renderParsedMessage(msg.message)}</span>
+            </div>
+          );
+        })}
+        
+        {!isBottomUp && <div style={{ flexGrow: 1, minHeight: '10px' }}></div>}
+      </div>
+
+      {!isOverlayMode && isAutoScrollPaused && (
+        <button
+          onClick={scrollToNewest}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            bottom: isBottomUp ? '20px' : 'auto',
+            top: !isBottomUp ? '20px' : 'auto',
+            backgroundColor: config.previewBg || '#333333',
+            color: buttonTextColor,
+            border: `2px solid ${buttonBorderColor}`,
+            borderRadius: '24px',
+            padding: '8px 24px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            cursor: 'pointer',
+            zIndex: 10,
+            fontSize: '14px',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'all 0.2s ease-in-out'
+          }}
+          onMouseEnter={(e) => e.target.style.transform = 'translateX(-50%) scale(1.05)'}
+          onMouseLeave={(e) => e.target.style.transform = 'translateX(-50%) scale(1)'}
+        >
+          {isBottomUp ? '⬇' : '⬆'} Ver nuevos mensajes
+        </button>
+      )}
     </div>
-  )
+  );
 }

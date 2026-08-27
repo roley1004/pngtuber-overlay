@@ -80,7 +80,7 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
           <div className="inline-input-group">
             <label className="input-label">Tema</label>
             <select className="text-input" value={config.theme} onChange={handleThemeChange}>
-              <option value="default">Clásico Oscuro</option>
+              <option value="default">Clásico</option>
               <option value="clean">Burbujas Limpias</option>
               <option value="neon">Cyber Neon</option>
               <option value="pixel">8-Bit Retro</option>
