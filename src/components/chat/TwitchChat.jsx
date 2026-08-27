@@ -178,8 +178,8 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     return () => { isMounted = false; };
   }, [targetChannel, config.emotes?.bttv, config.emotes?.ffz, config.emotes?.seventv]);
 
+  // Conexión continua a Twitch sin interrumpir en segundo plano
   useEffect(() => {
-    if (previewMode === 'test' && !isOverlayMode) return;
     if (!targetChannel) return;
 
     const cleanChannel = targetChannel.replace('#', '').trim().toLowerCase();
@@ -221,7 +221,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     return () => { 
       client.disconnect().catch(() => {});
     };
-  }, [targetChannel, isOverlayMode, removeMessage, previewMode]);
+  }, [targetChannel, isOverlayMode, removeMessage]);
 
   const handleScroll = () => {
     if (isOverlayMode) return;
