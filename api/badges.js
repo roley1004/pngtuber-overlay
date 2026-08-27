@@ -4,7 +4,6 @@ export default async function handler(req, res) {
   const clientId = process.env.TWITCH_CLIENT_ID;
   const clientSecret = process.env.TWITCH_CLIENT_SECRET;
 
-  // Diagnóstico mejorado: te dirá exactamente qué variable falta
   if (!clientId || !clientSecret) {
     const missing = [];
     if (!clientId) missing.push("TWITCH_CLIENT_ID");
@@ -15,7 +14,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (channel) channel = channel.replace('#', '').trim();
+    // Normalizamos el canal a minúsculas exactas para la API de Twitch
+    if (channel) channel = channel.replace('#', '').trim().toLowerCase();
 
     const tokenRes = await fetch(`https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`, { method: 'POST' });
     const { access_token: accessToken } = await tokenRes.json();
@@ -48,6 +48,7 @@ export default async function handler(req, res) {
         if (channelBadges.data) {
           channelBadges.data.forEach(set => {
             if (!allBadges[set.set_id]) allBadges[set.set_id] = {};
+            // Reemplazamos las insignias globales por las personalizadas del canal
             set.versions.forEach(version => { 
                 allBadges[set.set_id][version.id] = version.image_url_4x || version.image_url_2x || version.image_url_1x; 
             });

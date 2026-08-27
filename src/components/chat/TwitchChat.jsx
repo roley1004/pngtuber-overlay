@@ -2,11 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import tmi from 'tmi.js';
 import './TwitchChat.css';
 
-// Componente ultra ligero que solo lee la URL oficial de Twitch
 const BadgeImg = ({ src, fallback, title }) => {
   const [error, setError] = useState(false);
   
-  // SOLUCIÓN: Si la URL de origen cambia (la bóveda descargó todo), quitamos el bloqueo de error
   useEffect(() => {
     setError(false);
   }, [src]);
@@ -25,12 +23,11 @@ const BadgeImg = ({ src, fallback, title }) => {
   );
 };
 
-// Mensajes de prueba optimizados con rawBadges falsos para probar el sistema
 const staticDummyMessages = [
   { id: '1', username: 'Streamer', roles: { broadcaster: true, platform: true }, rawBadges: { broadcaster: '1' }, color: '#FF5733', message: '¡Bienvenidos al stream!' },
   { id: '2', username: 'ModVigilante', roles: { mod: true, platform: true }, rawBadges: { moderator: '1' }, color: '#33FF57', message: 'Recuerden leer las reglas. !reglas' },
   { id: '3', username: 'VIPFan', roles: { vip: true, platform: true }, rawBadges: { vip: '1' }, color: '#FF33F5', message: '¡Qué buen directo, soy VIP!' },
-  { id: '4', username: 'SubFiel', roles: { subscriber: true, platform: true }, rawBadges: { subscriber: '0' }, color: '#3357FF', message: 'Llevo 6 meses suscrito 🤩' },
+  { id: '4', username: 'SubFiel', roles: { subscriber: true, platform: true }, rawBadges: { subscriber: '3' }, color: '#3357FF', message: 'Llevo meses suscrito 🤩' },
   { id: '5', username: 'TurboUser', roles: { turbo: true, platform: true }, rawBadges: { turbo: '1' }, color: '#FF0000', message: 'Disfrutando el stream sin anuncios.' },
   { id: '6', username: 'PrimeUser', roles: { prime: true, platform: true }, rawBadges: { premium: '1' }, color: '#0088FF', message: 'Apoyando con Prime Gaming.' },
   { id: '7', username: 'Donador', roles: { bits: true, platform: true }, rawBadges: { bits: '1000' }, color: '#FFB100', message: '¡Toma unos cuantos bits!' },
@@ -39,7 +36,7 @@ const staticDummyMessages = [
 
 export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode = 'live', clearTrigger = 0 }) {
   const [messages, setMessages] = useState([]);
-  const [twitchBadges, setTwitchBadges] = useState({}); // Aquí vivirá el catálogo oficial
+  const [twitchBadges, setTwitchBadges] = useState({});
 
   const removeMessage = useCallback((id) => {
     setMessages(prev => prev.filter(msg => msg.id !== id));
@@ -49,10 +46,8 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     if (clearTrigger > 0) setMessages([]);
   }, [clearTrigger]);
 
-  // Conexión a nuestra bóveda para descargar el catálogo completo
   useEffect(() => {
-    // Codificamos el canal para evitar que símbolos como el '#' rompan la URL
-    const query = targetChannel ? `?channel=${encodeURIComponent(targetChannel.replace('#', '').trim())}` : '';
+    const query = targetChannel ? `?channel=${encodeURIComponent(targetChannel.replace('#', '').trim().toLowerCase())}` : '';
     
     fetch(`/api/badges${query}`)
       .then(res => res.json())
@@ -66,7 +61,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     if (previewMode === 'test' && !isOverlayMode) return;
     if (!targetChannel) return;
 
-    const cleanChannel = targetChannel.replace('#', '').trim();
+    const cleanChannel = targetChannel.replace('#', '').trim().toLowerCase();
     const client = new tmi.Client({ channels: [cleanChannel] });
     client.connect().catch(console.error);
 
@@ -89,7 +84,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
             prime: !!tags.badges?.premium,
             bits: !!tags.badges?.bits
           },
-          rawBadges: tags.badges || {}, // Guardamos las versiones exactas que envía Twitch
+          rawBadges: tags.badges || {},
           color: tags.color || '#ffffff',
           message: message
         };
@@ -119,10 +114,32 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
   const displayMessages = isBottomUp ? filteredMessages : [...filteredMessages].reverse();
   const justifyContent = isBottomUp ? 'flex-end' : 'flex-start';
 
-  // Función maestra para buscar la imagen exacta en nuestro catálogo descargado
+  // Búsqueda inteligente de insignias con respaldo de versión cercana
   const getBadgeSrc = (msg, setId) => {
-    const version = msg.rawBadges?.[setId] || '1';
-    return twitchBadges[setId]?.[version];
+    const targetVersion = msg.rawBadges?.[setId];
+    if (!targetVersion) return null;
+
+    const setBadges = twitchBadges[setId];
+    if (!setBadges) return null;
+
+    if (setBadges[targetVersion]) {
+      return setBadges[targetVersion];
+    }
+
+    const numericTarget = parseInt(targetVersion, 10);
+    if (!isNaN(numericTarget)) {
+      const availableVersions = Object.keys(setBadges)
+        .map(v => parseInt(v, 10))
+        .filter(v => !isNaN(v) && v <= numericTarget)
+        .sort((a, b) => b - a);
+
+      if (availableVersions.length > 0) {
+        return setBadges[availableVersions[0]];
+      }
+    }
+
+    const firstAvailableKey = Object.keys(setBadges)[0];
+    return setBadges[firstAvailableKey] || null;
   };
 
   return (
@@ -158,7 +175,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
               {msg.roles.broadcaster && <BadgeImg src={getBadgeSrc(msg, 'broadcaster')} fallback="🎥" title="Broadcaster" />}
               {config.badges.mod && msg.roles.mod && <BadgeImg src={getBadgeSrc(msg, 'moderator')} fallback="🛡️" title="Moderador" />}
               {config.badges.vip && msg.roles.vip && <BadgeImg src={getBadgeSrc(msg, 'vip')} fallback="💎" title="VIP" />}
-              {config.badges.sub && msg.roles.subscriber && <BadgeImg src={msg.rawBadges?.founder ? getBadgeSrc(msg, 'founder') : getBadgeSrc(msg, 'subscriber')} fallback="⭐" title="Suscriptor" />}
+              {config.badges.sub && msg.roles.subscriber && <BadgeImg src={msg.rawBadges?.founder ? (getBadgeSrc(msg, 'founder') || getBadgeSrc(msg, 'subscriber')) : getBadgeSrc(msg, 'subscriber')} fallback="⭐" title="Suscriptor" />}
               {config.badges.turbo && msg.roles.turbo && <BadgeImg src={getBadgeSrc(msg, 'turbo')} fallback="🔋" title="Turbo" />}
               {config.badges.prime && msg.roles.prime && <BadgeImg src={getBadgeSrc(msg, 'premium')} fallback="👑" title="Prime" />}
               {config.badges.bits && msg.roles.bits && <BadgeImg src={getBadgeSrc(msg, 'bits')} fallback="🪙" title="Bits" />}
