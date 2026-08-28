@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import OBSWebSocket from 'obs-websocket-js';
+import { calculateVolumePercentage } from '../utils/obsHelpers';
 
 export function useOBS({
   password, setPassword, serverAddress, isAvatarOverlay, isChatOverlay,
@@ -140,9 +141,7 @@ export function useOBS({
             if (!knownMics.current.has(input.inputName)) { knownMics.current.add(input.inputName); newMicsFound = true; }
             if (micRef && input.inputName === micRef.current && input.inputLevelsMul) {
               input.inputLevelsMul.forEach(channel => { 
-                const peak = channel[1] !== undefined ? channel[1] : channel[0];
-                const db = 20 * Math.log10(peak || 0.00001);
-                const percent = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+                const percent = calculateVolumePercentage(channel);
                 if (percent > maxVolume) maxVolume = percent;
               });
             }

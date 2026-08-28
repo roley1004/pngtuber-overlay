@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { compressImage } from '../utils/imageHelpers';
 
 export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
   const [fileError, setFileError] = useState('');
@@ -38,37 +39,19 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     return () => clearTimeout(timeoutId);
   }, [blinkFrequency, isRandomBlink]);
 
-  const handleImageUpload = (key, event) => {
+  const handleImageUpload = async (key, event) => {
     const file = event.target.files[0];
     if (!file) return;
-    if (file.size > 2.5 * 1024 * 1024) {
-      setFileError('Archivo mayor a 2.5MB. Usa una imagen más ligera.');
+
+    try {
+      const compressedBase64 = await compressImage(file);
+      setFileError('');
+      setImages(prev => ({ ...prev, [key]: compressedBase64 }));
+      if (!isAvatarOverlay) localStorage.setItem(`obs-pngtuber-img-${key}`, compressedBase64);
+    } catch (errorMsg) {
+      setFileError(errorMsg);
       setTimeout(() => setFileError(''), 4000);
-      return;
     }
-    setFileError('');
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_SIZE = 400;
-        let width = img.width, height = img.height;
-        if (width > MAX_SIZE || height > MAX_SIZE) {
-          if (width > height) { height *= MAX_SIZE / width; width = MAX_SIZE; } 
-          else { width *= MAX_SIZE / height; height = MAX_SIZE; }
-        }
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        const compressedBase64 = canvas.toDataURL('image/webp', 0.8);
-        
-        setImages(prev => ({ ...prev, [key]: compressedBase64 }));
-        if (!isAvatarOverlay) localStorage.setItem(`obs-pngtuber-img-${key}`, compressedBase64);
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
   };
 
   const getCurrentImage = () => {

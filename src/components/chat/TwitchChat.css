@@ -1,5 +1,122 @@
 @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;700&family=Inter:wght@400;700&family=Orbitron:wght@400;700&family=Press+Start+2P&display=swap');
 
+/* =========================================
+   Contenedores Principales
+========================================= */
+.twitch-chat-wrapper {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.twitch-chat-container {
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  gap: 4px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.twitch-chat-container.overlay-mode {
+  height: 100vh;
+  width: 100vw;
+  overflow-y: hidden;
+  padding: 10px;
+}
+
+/* Personalización barra de scroll (WebKit) */
+.twitch-chat-container::-webkit-scrollbar {
+  width: 6px;
+}
+.twitch-chat-container::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+}
+
+.chat-spacer {
+  flex-grow: 1;
+  min-height: 10px;
+}
+
+/* =========================================
+   Elementos Internos (Insignias, Emotes, Texto)
+========================================= */
+.chat-username {
+  font-weight: bold;
+  margin-right: 6px;
+}
+
+.chat-text {
+  word-wrap: break-word;
+}
+
+.chat-badge-img {
+  height: 1.2em;
+  width: auto;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.badge-emoji {
+  font-size: 1em;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.chat-emote-img {
+  height: 1.3em;
+  width: auto;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
+/* =========================================
+   Botón Flotante de Scroll
+========================================= */
+.chat-scroll-button {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 24px;
+  padding: 8px 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 10;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+.chat-scroll-button:hover {
+  transform: translateX(-50%) scale(1.05);
+}
+
+/* =========================================
+   Animación de Desvanecimiento (Fade Out)
+========================================= */
+@keyframes forceFadeOutAnim {
+  0% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
+}
+
+.chat-fade-active {
+  animation-fill-mode: forwards !important;
+}
+
+/* =========================================
+   Temas Visuales
+========================================= */
 /* Default (Clásico Oscuro) */
 .chat-message.theme-default {
   padding: 4px 8px;
@@ -37,12 +154,4 @@
 }
 .chat-message.theme-pixel .chat-badges {
   filter: grayscale(100%) contrast(200%);
-}
-
-.chat-badges .badge {
-  margin-right: 4px;
-  vertical-align: middle;
-}
-.chat-text {
-  word-wrap: break-word;
 }

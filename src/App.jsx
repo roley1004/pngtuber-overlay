@@ -7,6 +7,7 @@ import { EditorHeader } from './components/core/EditorHeader'
 import { useOBS } from './hooks/useOBS'
 import { usePNGTuber } from './hooks/usePNGTuber'
 import { useChatSettings } from './hooks/useChatSettings'
+import { encodeOBSConfig, decodeOBSConfig } from './utils/urlHelpers'
 import './App.css'
 
 function App() {
@@ -16,12 +17,11 @@ function App() {
   const encodedChat = urlParams.get('chat')
   const isChatOverlay = Boolean(encodedChat)
 
-  // Extraer dirección y contraseña de la URL corta
+  // Extraer dirección y contraseña de la URL corta usando nuestra utilidad
   const obsConfigDecoded = useMemo(() => {
     const encoded = encodedAvatar || encodedChat;
     if ((isAvatarOverlay || isChatOverlay) && encoded) {
-      try { const [a, p] = atob(encoded).split('||'); return { a, p }; } 
-      catch(e) { return {}; }
+      return decodeOBSConfig(encoded);
     }
     return {};
   }, [isAvatarOverlay, isChatOverlay, encodedAvatar, encodedChat])
@@ -87,15 +87,15 @@ function App() {
     return () => document.removeEventListener('click', handleClickOutside)
   }, [])
 
-  // Ahora ambas URLs son encriptadas y super cortas
+  // Ahora ambas URLs son encriptadas usando la utilidad
   const avatarLinkGenerated = useMemo(() => {
-    if (!password || !serverAddress) return '';
-    return `${window.location.origin}${window.location.pathname}?avatar=${btoa(serverAddress + '||' + password)}`;
+    const encoded = encodeOBSConfig(serverAddress, password);
+    return encoded ? `${window.location.origin}${window.location.pathname}?avatar=${encoded}` : '';
   }, [password, serverAddress])
 
   const chatLinkGenerated = useMemo(() => {
-    if (!password || !serverAddress) return '';
-    return `${window.location.origin}${window.location.pathname}?chat=${btoa(serverAddress + '||' + password)}`;
+    const encoded = encodeOBSConfig(serverAddress, password);
+    return encoded ? `${window.location.origin}${window.location.pathname}?chat=${encoded}` : '';
   }, [password, serverAddress])
 
   const memoizedTwitchChat = useMemo(() => (

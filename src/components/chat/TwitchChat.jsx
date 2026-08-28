@@ -1,28 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import tmi from 'tmi.js';
 import './TwitchChat.css';
-
-const DEFAULT_BADGES = {
-  broadcaster: { "1": "https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-422d-b71b-f309dcb85cc1/3" },
-  moderator: { "1": "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/3" },
-  vip: { "1": "https://static-cdn.jtvnw.net/badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/3" },
-  subscriber: { "0": "https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2ff4adfae661/3", "1": "https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2ff4adfae661/3" },
-  founder: { "0": "https://static-cdn.jtvnw.net/badges/v1/511b78a9-ab37-472f-9569-457753bbe7d3/3" },
-  turbo: { "1": "https://static-cdn.jtvnw.net/badges/v1/bd444ec6-8f34-4bf9-91f4-af1e3428d80f/3" },
-  premium: { "1": "https://static-cdn.jtvnw.net/badges/v1/bbbe0db0-a598-423e-86d0-f9fb98ca1933/3" },
-  bits: { "1": "https://static-cdn.jtvnw.net/badges/v1/73b5c3fb-24f9-4a82-a852-2f475b59411c/3", "1000": "https://static-cdn.jtvnw.net/badges/v1/0d85a29e-79ad-4c63-a285-3acd2c66f2ba/3" }
-};
-
-const getContrastColor = (hexColor) => {
-  if (!hexColor || typeof hexColor !== 'string') return '#ffffff';
-  const cleanHex = hexColor.replace('#', '');
-  if (cleanHex.length !== 6) return '#ffffff';
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return brightness >= 128 ? '#111111' : '#ffffff';
-};
+import { DEFAULT_BADGES, getContrastColor, staticDummyMessages } from '../../utils/chatHelpers';
 
 const BadgeImg = ({ src, fallback, title }) => {
   const [error, setError] = useState(false);
@@ -32,29 +11,18 @@ const BadgeImg = ({ src, fallback, title }) => {
   }, [src]);
   
   if (!src || error) {
-    return <span className="badge-emoji" title={title} style={{ fontSize: '1em', marginRight: '4px', verticalAlign: 'middle' }}>{fallback}</span>;
+    return <span className="badge-emoji" title={title}>{fallback}</span>;
   }
   return (
     <img 
       src={src} 
       alt={title} 
       title={title} 
-      style={{ height: '1.2em', width: 'auto', verticalAlign: 'middle', marginRight: '4px' }}
+      className="chat-badge-img"
       onError={() => setError(true)} 
     />
   );
 };
-
-const staticDummyMessages = [
-  { id: '1', username: 'Streamer', roles: { broadcaster: true, platform: true }, rawBadges: { broadcaster: '1' }, color: '#FF5733', message: '¡Bienvenidos al stream! KEKW catJAM' },
-  { id: '2', username: 'ModVigilante', roles: { mod: true, platform: true }, rawBadges: { moderator: '1' }, color: '#33FF57', message: 'Recuerden leer las reglas. !reglas LUL' },
-  { id: '3', username: 'VIPFan', roles: { vip: true, platform: true }, rawBadges: { vip: '1' }, color: '#FF33F5', message: '¡Qué buen directo, soy VIP! Pog' },
-  { id: '4', username: 'SubFiel', roles: { subscriber: true, platform: true }, rawBadges: { subscriber: '1' }, color: '#3357FF', message: 'Llevo meses suscrito 🤩' },
-  { id: '5', username: 'TurboUser', roles: { turbo: true, platform: true }, rawBadges: { turbo: '1' }, color: '#FF0000', message: 'Disfrutando el stream sin anuncios.' },
-  { id: '6', username: 'PrimeUser', roles: { prime: true, platform: true }, rawBadges: { premium: '1' }, color: '#0088FF', message: 'Apoyando con Prime Gaming.' },
-  { id: '7', username: 'Donador', roles: { bits: true, platform: true }, rawBadges: { bits: '1000' }, color: '#FFB100', message: '¡Toma unos cuantos bits!' },
-  { id: '8', username: 'ViewerComun', roles: { platform: true }, rawBadges: {}, color: '#FFFFFF', message: 'Hola a todos desde Twitch 👋' }
-];
 
 export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode = 'live', clearTrigger = 0 }) {
   const [messages, setMessages] = useState([]);
@@ -83,7 +51,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     
     fetch(`/api/badges${query}`)
       .then(res => {
-        if (!res.ok) throw new Error('Error al conectar con API local/Vercel');
+        if (!res.ok) throw new Error('Error al conectar con API');
         return res.json();
       })
       .then(data => {
@@ -178,7 +146,6 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     return () => { isMounted = false; };
   }, [targetChannel, config.emotes?.bttv, config.emotes?.ffz, config.emotes?.seventv]);
 
-  // Conexión continua a Twitch sin interrumpir en segundo plano
   useEffect(() => {
     if (!targetChannel) return;
 
@@ -206,6 +173,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
             bits: !!tags.badges?.bits
           },
           rawBadges: tags.badges || {},
+          emotesTags: tags.emotes,
           color: tags.color || '#ffffff',
           message: message
         };
@@ -307,64 +275,131 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     return setBadges[firstAvailableKey] || null;
   };
 
-  const renderParsedMessage = (text) => {
-    if (!text) return null;
-    const words = text.split(' ');
-    return words.map((word, idx) => {
-      const emoteUrl = emotesMap[word];
-      const isLast = idx === words.length - 1;
-      if (emoteUrl) {
+  const renderParsedMessage = (msgObj) => {
+    const { message, emotesTags } = msgObj;
+    if (!message) return null;
+
+    const twitchEmotes = [];
+    if (emotesTags) {
+      Object.keys(emotesTags).forEach(id => {
+        emotesTags[id].forEach(range => {
+          const [start, end] = range.split('-').map(Number);
+          twitchEmotes.push({
+            start, end, id,
+            code: message.slice(start, end + 1),
+            url: `https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/2.0`
+          });
+        });
+      });
+    }
+
+    twitchEmotes.sort((a, b) => a.start - b.start);
+
+    const parts = [];
+    let lastIndex = 0;
+
+    twitchEmotes.forEach(emote => {
+      if (emote.start > lastIndex) {
+        parts.push({ type: 'text', content: message.slice(lastIndex, emote.start) });
+      }
+      parts.push({ type: 'twitch', url: emote.url, code: emote.code });
+      lastIndex = emote.end + 1;
+    });
+
+    if (lastIndex < message.length) {
+      parts.push({ type: 'text', content: message.slice(lastIndex) });
+    }
+    if (parts.length === 0) {
+      parts.push({ type: 'text', content: message });
+    }
+
+    return parts.map((part, pIdx) => {
+      if (part.type === 'twitch') {
         return (
-          <React.Fragment key={idx}>
-            <img 
-              src={emoteUrl} 
-              alt={word} 
-              title={word} 
-              style={{ height: '1.3em', width: 'auto', verticalAlign: 'middle', margin: '0 2px' }} 
-            />
-            {!isLast && ' '}
-          </React.Fragment>
+          <img 
+            key={`tw-${pIdx}`} src={part.url} alt={part.code} title={part.code} 
+            className="chat-emote-img" 
+          />
         );
       }
-      return word + (!isLast ? ' ' : '');
+
+      const words = part.content.split(' ');
+      return words.map((word, wIdx) => {
+        const emoteUrl = emotesMap[word];
+        const isLast = wIdx === words.length - 1;
+        if (emoteUrl) {
+          return (
+            <React.Fragment key={`3rd-${pIdx}-${wIdx}`}>
+              <img src={emoteUrl} alt={word} title={word} className="chat-emote-img" />
+              {!isLast && ' '}
+            </React.Fragment>
+          );
+        }
+        return word + (!isLast ? ' ' : '');
+      });
     });
   };
 
+  const getCustomHtmlParsedText = (msgObj) => {
+    const { message, emotesTags } = msgObj;
+    if (!message) return '';
+
+    const twitchEmotes = [];
+    if (emotesTags) {
+      Object.keys(emotesTags).forEach(id => {
+        emotesTags[id].forEach(range => {
+          const [start, end] = range.split('-').map(Number);
+          twitchEmotes.push({ start, end, id, code: message.slice(start, end + 1), url: `https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/2.0` });
+        });
+      });
+    }
+    twitchEmotes.sort((a, b) => a.start - b.start);
+
+    let resultHtml = '';
+    let lastIndex = 0;
+
+    const processText = (text) => {
+      return text.split(' ').map(w => emotesMap[w] 
+        ? `<img src="${emotesMap[w]}" alt="${w}" title="${w}" class="chat-emote-img" />` 
+        : w).join(' ');
+    };
+
+    twitchEmotes.forEach(emote => {
+      if (emote.start > lastIndex) {
+        resultHtml += processText(message.slice(lastIndex, emote.start));
+      }
+      resultHtml += `<img src="${emote.url}" alt="${emote.code}" title="${emote.code}" class="chat-emote-img" />`;
+      lastIndex = emote.end + 1;
+    });
+
+    if (lastIndex < message.length) {
+      resultHtml += processText(message.slice(lastIndex));
+    }
+
+    return resultHtml;
+  };
+
   return (
-    <div style={{ position: 'relative', height: '100%', width: '100%', overflow: 'hidden' }}>
+    <div className="twitch-chat-wrapper">
       <div 
         ref={chatContainerRef}
         onScroll={handleScroll}
-        className="twitch-chat-container" 
+        className={`twitch-chat-container ${isOverlayMode ? 'overlay-mode' : ''}`} 
         style={{ 
-          fontSize: `${config.fontSize}px`, color: config.textColor, fontFamily: config.fontFamily || 'Inter, sans-serif',
-          height: isOverlayMode ? '100vh' : '100%', width: isOverlayMode ? '100vw' : '100%',
-          display: 'flex', flexDirection: 'column', 
-          overflowY: isOverlayMode ? 'hidden' : 'auto', 
-          overflowX: 'hidden', gap: '4px', boxSizing: 'border-box', padding: isOverlayMode ? '10px' : '0',
-          scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.3) transparent'
+          fontSize: `${config.fontSize}px`, 
+          color: config.textColor, 
+          fontFamily: config.fontFamily || 'Inter, sans-serif'
         }}>
-        <style>
-          {`
-            @keyframes forceFadeOutAnim { 0% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-5px); } }
-            .chat-fade-active { animation-fill-mode: forwards !important; }
-            .twitch-chat-container::-webkit-scrollbar { width: 6px; }
-            .twitch-chat-container::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.3); border-radius: 10px; }
-          `}
-        </style>
+        
         {config.isAdvanced && config.customCSS && <style>{config.customCSS}</style>}
 
-        {isBottomUp && <div style={{ flexGrow: 1, minHeight: '10px' }}></div>}
+        {isBottomUp && <div className="chat-spacer"></div>}
 
         {displayMessages.map(msg => {
           const animationStyle = shouldFadeOut ? { animation: `forceFadeOutAnim ${config.fadeOut}s forwards` } : {};
 
           if (config.isAdvanced && config.customHTML && config.customHTML.includes('{message}')) {
-            const parsedTextHtml = msg.message.split(' ').map(w => {
-              return emotesMap[w] 
-                ? `<img src="${emotesMap[w]}" alt="${w}" title="${w}" style="height: 1.3em; vertical-align: middle; margin: 0 2px;" />` 
-                : w;
-            }).join(' ');
+            const parsedTextHtml = getCustomHtmlParsedText(msg);
 
             const customRender = config.customHTML
               .replace(/{username}/g, `<span style="color: ${msg.color}">${msg.username}</span>`)
@@ -385,41 +420,26 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
                 {config.badges.prime && msg.roles.prime && <BadgeImg src={getBadgeSrc(msg, 'premium')} fallback="👑" title="Prime" />}
                 {config.badges.bits && msg.roles.bits && <BadgeImg src={getBadgeSrc(msg, 'bits')} fallback="🪙" title="Bits" />}
               </span>
-              <span className="chat-username" style={{ color: msg.color, fontWeight: 'bold', marginRight: '6px' }}>{msg.username}:</span>
-              <span className="chat-text">{renderParsedMessage(msg.message)}</span>
+              <span className="chat-username" style={{ color: msg.color }}>{msg.username}:</span>
+              <span className="chat-text">{renderParsedMessage(msg)}</span>
             </div>
           );
         })}
         
-        {!isBottomUp && <div style={{ flexGrow: 1, minHeight: '10px' }}></div>}
+        {!isBottomUp && <div className="chat-spacer"></div>}
       </div>
 
       {!isOverlayMode && isAutoScrollPaused && (
         <button
+          className="chat-scroll-button"
           onClick={scrollToNewest}
           style={{
-            position: 'absolute',
-            left: '50%',
-            transform: 'translateX(-50%)',
             bottom: isBottomUp ? '20px' : 'auto',
             top: !isBottomUp ? '20px' : 'auto',
             backgroundColor: config.previewBg || '#333333',
             color: buttonTextColor,
-            border: `2px solid ${buttonBorderColor}`,
-            borderRadius: '24px',
-            padding: '8px 24px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-            cursor: 'pointer',
-            zIndex: 10,
-            fontSize: '14px',
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'all 0.2s ease-in-out'
+            border: `2px solid ${buttonBorderColor}`
           }}
-          onMouseEnter={(e) => e.target.style.transform = 'translateX(-50%) scale(1.05)'}
-          onMouseLeave={(e) => e.target.style.transform = 'translateX(-50%) scale(1)'}
         >
           {isBottomUp ? '⬇' : '⬆'} Ver nuevos mensajes
         </button>
