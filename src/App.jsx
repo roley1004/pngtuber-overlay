@@ -10,12 +10,46 @@ import { useChatSettings } from './hooks/useChatSettings'
 import { encodeOBSConfig, decodeOBSConfig } from './utils/urlHelpers'
 import './App.css'
 
+function ToastNotification({ toast, onClose }) {
+  const [isHovered, setIsHovered] = useState(false)
+
+  useEffect(() => {
+    if (!toast) return
+    if (isHovered) return
+
+    const timer = setTimeout(() => {
+      onClose()
+    }, 5000)
+
+    return () => clearTimeout(timer)
+  }, [toast, isHovered, onClose])
+
+  if (!toast) return null
+
+  return (
+    <div 
+      className={`toast-container toast-${toast.type || 'success'}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <span>{toast.type === 'alert' ? '⚠️' : '✔️'}</span>
+      <span>{toast.message}</span>
+      <button className="toast-close-btn" onClick={onClose}>×</button>
+    </div>
+  )
+}
+
 function App() {
   const urlParams = new URLSearchParams(window.location.search)
   const encodedAvatar = urlParams.get('avatar')
   const isAvatarOverlay = Boolean(encodedAvatar)
   const encodedChat = urlParams.get('chat')
   const isChatOverlay = Boolean(encodedChat)
+
+  const [toast, setToast] = useState(null)
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type, id: Date.now() })
+  }
 
   const obsConfigDecoded = useMemo(() => {
     const encoded = encodedAvatar || encodedChat;
@@ -95,7 +129,9 @@ function App() {
     talkIntensity, setTalkIntensity, idleIntensity, setIdleIntensity,
     isVoiceReactive, setIsVoiceReactive,
     talkAnimation, setTalkAnimation, idleAnimation, setIdleAnimation, 
-    images, setImages, micRef, sensRef, handleImageUpload, handleClearImage, getCurrentImage
+    images, setImages, micRef, sensRef, handleImageUpload, handleClearImage, getCurrentImage,
+    presets, setPresets, activePresetId, setActivePresetId, activePreset,
+    addPreset, duplicatePreset, deletePreset, updatePresetName, updatePresetTrigger
   } = usePNGTuber({ isAvatarOverlay, isTalking, isSimulating })
 
   const { 
@@ -108,7 +144,11 @@ function App() {
     setBounceIntensity: setTalkIntensity, 
     setImages,
     setAvailableMics, setCurrentVolume, setIsTalking, selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity: talkIntensity, images,
-    twitchInput, setTwitchInput, chatConfig, setChatConfig
+    twitchInput, setTwitchInput, chatConfig, setChatConfig,
+    talkAnimation, setTalkAnimation, idleAnimation, setIdleAnimation,
+    talkIntensity, setTalkIntensity, idleIntensity, setIdleIntensity,
+    isVoiceReactive, setIsVoiceReactive,
+    presets, setPresets, activePresetId, setActivePresetId
   });
 
   useEffect(() => { 
@@ -121,6 +161,12 @@ function App() {
     return () => document.removeEventListener('click', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (fileError) {
+      showToast(fileError, 'alert')
+    }
+  }, [fileError])
+
   const avatarLinkGenerated = useMemo(() => {
     const encoded = encodeOBSConfig(serverAddress, password);
     return encoded ? `${window.location.origin}${window.location.pathname}?avatar=${encoded}` : '';
@@ -132,8 +178,18 @@ function App() {
   }, [password, serverAddress])
 
   const memoizedTwitchChat = useMemo(() => (
-    <TwitchChat targetChannel={twitchInput} isOverlayMode={isChatOverlay} config={chatConfig} />
-  ), [twitchInput, isChatOverlay, chatConfig])
+    <TwitchChat 
+      targetChannel={twitchInput} 
+      isOverlayMode={isChatOverlay} 
+      config={chatConfig} 
+      presets={presets}
+      onSelectPreset={(id) => {
+        const p = presets.find(item => item.id === id);
+        setActivePresetId(id);
+        if (p && !isAvatarOverlay && !isChatOverlay) showToast(`Comando ejecutado: Avatar "${p.nombre}"`, 'success');
+      }}
+    />
+  ), [twitchInput, isChatOverlay, chatConfig, presets, setActivePresetId, isAvatarOverlay])
   
   const activeTalkingState = isTalking || isSimulating
 
@@ -158,22 +214,37 @@ function App() {
     return (
       <div className="overlay-mode preview-container" style={{width: '100vw', height: '100vh', margin: 0, padding: 0, backgroundColor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
         <Avatar isTalking={activeTalkingState} currentImage={getCurrentImage()} talkIntensity={effectiveTalkIntensity} idleIntensity={idleIntensity} talkAnimation={talkAnimation} idleAnimation={idleAnimation} />
+        <div style={{ display: 'none' }}>
+          {memoizedTwitchChat}
+        </div>
       </div>
     )
   }
 
   if (currentView === 'hub') {
     return (
-      <Hub 
-        setCurrentView={navigateTo} isConnected={isConnected} serverAddress={serverAddress} 
-        setServerAddress={setServerAddress} password={password} setPassword={setPassword} 
-        connectToOBS={connectToOBS} obsError={obsError} handleLogout={handleLogout}
-      />
+      <>
+        <Hub 
+          setCurrentView={navigateTo} isConnected={isConnected} serverAddress={serverAddress} 
+          setServerAddress={setServerAddress} password={password} setPassword={setPassword} 
+          connectToOBS={connectToOBS} obsError={obsError} handleLogout={handleLogout}
+        />
+        <div style={{ display: 'none' }}>
+          {memoizedTwitchChat}
+        </div>
+        <ToastNotification toast={toast} onClose={() => setToast(null)} />
+      </>
     )
   }
 
   return (
     <div className="app-layout">
+      {currentView !== 'chat' && (
+        <div style={{ display: 'none' }}>
+          {memoizedTwitchChat}
+        </div>
+      )}
+
       <EditorHeader 
         currentView={currentView} setCurrentView={navigateTo} avatarLinkGenerated={avatarLinkGenerated} 
         chatLinkGenerated={chatLinkGenerated} twitchInput={twitchInput} isConnected={isConnected} 
@@ -215,7 +286,10 @@ function App() {
             talkAnimation={talkAnimation} setTalkAnimation={setTalkAnimation} idleAnimation={idleAnimation} setIdleAnimation={setIdleAnimation}
             handleImageUpload={handleImageUpload} handleClearImage={handleClearImage}
             isSelectOpen={isSelectOpen} setIsSelectOpen={setIsSelectOpen} images={images} currentVolume={currentVolume} 
-            isTalking={activeTalkingState} fileError={fileError} isConnected={isConnected} chatPreview={memoizedTwitchChat} 
+            isTalking={activeTalkingState} fileError={fileError} isConnected={isConnected} chatPreview={memoizedTwitchChat}
+            presets={presets} activePresetId={activePresetId} setActivePresetId={setActivePresetId}
+            activePreset={activePreset} addPreset={addPreset} duplicatePreset={duplicatePreset}
+            deletePreset={deletePreset} updatePresetName={updatePresetName} updatePresetTrigger={updatePresetTrigger}
           />
         </div>
         
@@ -260,6 +334,7 @@ function App() {
           </>
         )}
       </div>
+      <ToastNotification toast={toast} onClose={() => setToast(null)} />
     </div>
   )
 }

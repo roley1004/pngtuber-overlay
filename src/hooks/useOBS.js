@@ -11,7 +11,8 @@ export function useOBS({
   twitchInput, setTwitchInput, chatConfig, setChatConfig,
   talkAnimation, setTalkAnimation, idleAnimation, setIdleAnimation,
   talkIntensity, setTalkIntensity, idleIntensity, setIdleIntensity,
-  isVoiceReactive, setIsVoiceReactive
+  isVoiceReactive, setIsVoiceReactive,
+  presets, setPresets, activePresetId, setActivePresetId
 }) {
   const [isConnected, setIsConnected] = useState(false);
   const [obsError, setObsError] = useState('');
@@ -21,24 +22,34 @@ export function useOBS({
   const talkingTimeoutRef = useRef(null);
 
   const imagesStr = JSON.stringify(images || {});
+  const presetsStr = JSON.stringify(presets || []);
   const chatConfigStr = JSON.stringify(chatConfig || {});
 
   const imagesRef = useRef(images);
   useEffect(() => { imagesRef.current = images; }, [imagesStr]);
 
+  const presetsRef = useRef(presets);
+  useEffect(() => { presetsRef.current = presets; }, [presetsStr]);
+
+  const activePresetIdRef = useRef(activePresetId);
+  useEffect(() => { activePresetIdRef.current = activePresetId; }, [activePresetId]);
+
   const payloadRef = useRef({
     selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
-    talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive
+    talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
+    activePresetId, presets
   });
 
   useEffect(() => {
     payloadRef.current = {
       selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
-      talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive
+      talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
+      activePresetId, presets
     };
   }, [
     selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfigStr,
-    talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive
+    talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
+    activePresetId, presetsStr
   ]);
 
   useEffect(() => {
@@ -47,12 +58,45 @@ export function useOBS({
     };
   }, []);
 
+  // Escuchador BroadcastChannel para sincronización instantánea entre pestañas de navegador
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.BroadcastChannel) return;
+    const bc = new BroadcastChannel('pngtuber_overlay_sync');
+
+    if (isAvatarOverlay || isChatOverlay) {
+      bc.onmessage = (event) => {
+        if (!event.data) return;
+        const { action, data } = event.data;
+        if (action === 'SYNC_AVATAR_FULL' && data) {
+          if (data.presets && setPresets) setPresets(data.presets);
+          if (data.activePresetId && setActivePresetId) setActivePresetId(data.activePresetId);
+          if (data.images && setImages) setImages(data.images);
+          if (data.talkAnimation !== undefined && setTalkAnimation) setTalkAnimation(data.talkAnimation);
+          if (data.idleAnimation !== undefined && setIdleAnimation) setIdleAnimation(data.idleAnimation);
+          if (data.talkIntensity !== undefined && setTalkIntensity) setTalkIntensity(data.talkIntensity);
+          if (data.idleIntensity !== undefined && setIdleIntensity) setIdleIntensity(data.idleIntensity);
+          if (data.isVoiceReactive !== undefined && setIsVoiceReactive) setIsVoiceReactive(data.isVoiceReactive);
+        }
+      };
+    }
+
+    return () => bc.close();
+  }, [isAvatarOverlay, isChatOverlay, setPresets, setActivePresetId, setImages, setTalkAnimation, setIdleAnimation, setTalkIntensity, setIdleIntensity, setIsVoiceReactive]);
+
   // 1. Heartbeat Constante (Sincronización periódica)
   useEffect(() => {
     if (isConnected && !isAvatarOverlay && !isChatOverlay && obs.current) {
       const syncData = () => {
         obs.current.call('BroadcastCustomEvent', {
-          eventData: { action: 'SYNC_PNGTUBER', data: payloadRef.current }
+          eventData: { 
+            action: 'SYNC_PNGTUBER', 
+            data: { 
+              ...payloadRef.current, 
+              images: imagesRef.current,
+              activePresetId: activePresetIdRef.current,
+              presets: presetsRef.current
+            } 
+          }
         }).catch(() => {});
       };
       syncData();
@@ -61,26 +105,65 @@ export function useOBS({
     }
   }, [isConnected, isAvatarOverlay, isChatOverlay]);
 
-  // 2. Sincronización instantánea de Imágenes
+  // 2. Sincronización instantánea al cambiar Preset/Avatar o modificar configuraciones
   useEffect(() => {
-    if (isConnected && !isAvatarOverlay && !isChatOverlay && obs.current) {
-      obs.current.call('BroadcastCustomEvent', {
-        eventData: { action: 'SYNC_IMAGES', data: { images } }
-      }).catch(() => {});
+    if (!isAvatarOverlay && !isChatOverlay) {
+      const currentPayload = {
+        selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
+        talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
+        activePresetId, presets
+      };
 
-      obs.current.call('SetPersistentData', {
-        realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
-        slotName: 'StreamTools_PNGTuber',
-        slotValue: { ...payloadRef.current, images }
-      }).catch(() => {
+      // Transmisión directa e instantánea mediante BroadcastChannel
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        try {
+          const bc = new BroadcastChannel('pngtuber_overlay_sync');
+          bc.postMessage({ action: 'SYNC_AVATAR_FULL', data: { ...currentPayload, images } });
+          bc.close();
+        } catch (e) {}
+      }
+
+      // Transmisión mediante OBS WebSocket
+      if (isConnected && obs.current) {
+        obs.current.call('BroadcastCustomEvent', {
+          eventData: { action: 'SYNC_IMAGES', data: { images, activePresetId, presets } }
+        }).catch(() => {});
+
+        obs.current.call('BroadcastCustomEvent', {
+          eventData: { action: 'SYNC_PNGTUBER', data: { ...currentPayload, images } }
+        }).catch(() => {});
+
         obs.current.call('SetPersistentData', {
           realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
           slotName: 'StreamTools_PNGTuber',
-          slotValue: payloadRef.current
-        }).catch(() => {});
-      });
+          slotValue: { ...currentPayload, images }
+        }).catch(() => {
+          obs.current.call('SetPersistentData', {
+            realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
+            slotName: 'StreamTools_PNGTuber',
+            slotValue: currentPayload
+          }).catch(() => {});
+        });
+      }
     }
-  }, [imagesStr, isConnected, isAvatarOverlay, isChatOverlay]);
+  }, [
+    imagesStr,
+    activePresetId,
+    presetsStr,
+    talkAnimation,
+    idleAnimation,
+    talkIntensity,
+    idleIntensity,
+    isVoiceReactive,
+    selectedMic,
+    sensitivity,
+    blinkFrequency,
+    isRandomBlink,
+    bounceIntensity,
+    isConnected,
+    isAvatarOverlay,
+    isChatOverlay
+  ]);
 
   const handleLogout = () => {
     try { obs.current.disconnect(); } catch (e) {}
@@ -116,6 +199,8 @@ export function useOBS({
           });
           if (data && data.slotValue) {
             const val = data.slotValue;
+            if (val.presets && setPresets) setPresets(val.presets);
+            if (val.activePresetId && setActivePresetId) setActivePresetId(val.activePresetId);
             if (val.selectedMic !== undefined && setSelectedMic) setSelectedMic(val.selectedMic);
             if (val.sensitivity !== undefined && setSensitivity) setSensitivity(val.sensitivity);
             if (val.blinkFrequency !== undefined && setBlinkFrequency) setBlinkFrequency(val.blinkFrequency);
@@ -137,27 +222,45 @@ export function useOBS({
         }).catch(() => {});
       }
 
-      // Escuchador de eventos personalizados
+      // Escuchador de eventos personalizados con lectura corregida
       obs.current.on('CustomEvent', (event) => {
         if (!event) return;
+        const evtData = event.eventData || event;
+        const action = evtData.action;
+        const data = evtData.data;
 
         // El Panel principal responde a peticiones del Overlay
         if (!isAvatarOverlay && !isChatOverlay) {
-          if (event.action === 'REQUEST_SYNC') {
+          if (action === 'REQUEST_SYNC') {
             obs.current.call('BroadcastCustomEvent', {
-              eventData: { action: 'SYNC_PNGTUBER', data: payloadRef.current }
+              eventData: { 
+                action: 'SYNC_PNGTUBER', 
+                data: { 
+                  ...payloadRef.current, 
+                  images: imagesRef.current,
+                  activePresetId: activePresetIdRef.current,
+                  presets: presetsRef.current
+                } 
+              }
             }).catch(() => {});
             obs.current.call('BroadcastCustomEvent', {
-              eventData: { action: 'SYNC_IMAGES', data: { images: imagesRef.current } }
+              eventData: { 
+                action: 'SYNC_IMAGES', 
+                data: { 
+                  images: imagesRef.current,
+                  activePresetId: activePresetIdRef.current,
+                  presets: presetsRef.current
+                } 
+              }
             }).catch(() => {});
           }
         }
 
         // El Overlay aplica los cambios recibidos
         if (isAvatarOverlay || isChatOverlay) {
-          const { data } = event;
-          
-          if (event.action === 'SYNC_PNGTUBER' && data) {
+          if (action === 'SYNC_PNGTUBER' && data) {
+            if (data.presets && setPresets) setPresets(data.presets);
+            if (data.activePresetId && setActivePresetId) setActivePresetId(data.activePresetId);
             if (data.selectedMic !== undefined && setSelectedMic) setSelectedMic(data.selectedMic);
             if (data.sensitivity !== undefined && setSensitivity) setSensitivity(data.sensitivity);
             if (data.blinkFrequency !== undefined && setBlinkFrequency) setBlinkFrequency(data.blinkFrequency);
@@ -170,8 +273,11 @@ export function useOBS({
             if (data.talkIntensity !== undefined && setTalkIntensity) setTalkIntensity(data.talkIntensity);
             if (data.idleIntensity !== undefined && setIdleIntensity) setIdleIntensity(data.idleIntensity);
             if (data.isVoiceReactive !== undefined && setIsVoiceReactive) setIsVoiceReactive(data.isVoiceReactive);
+            if (data.images && setImages) setImages(data.images);
           } 
-          else if (event.action === 'SYNC_IMAGES' && data) {
+          else if (action === 'SYNC_IMAGES' && data) {
+            if (data.presets && setPresets) setPresets(data.presets);
+            if (data.activePresetId && setActivePresetId) setActivePresetId(data.activePresetId);
             if (data.images && setImages) {
               setImages(data.images);
               Object.entries(data.images).forEach(([key, val]) => {
@@ -205,7 +311,7 @@ export function useOBS({
 
           // Lógica con histéresis y retardo
           if (setIsTalking && sensRef) {
-            const turnOnThreshold = sensRef.current + 2.0; // Margen para evitar saltos por ruido
+            const turnOnThreshold = sensRef.current + 2.0;
 
             if (maxVolume >= turnOnThreshold) {
               if (talkingTimeoutRef.current) {
@@ -218,7 +324,7 @@ export function useOBS({
                 talkingTimeoutRef.current = setTimeout(() => {
                   setIsTalking(false);
                   talkingTimeoutRef.current = null;
-                }, 250); // 250ms de gracia al dejar de hablar
+                }, 250);
               }
             }
           }

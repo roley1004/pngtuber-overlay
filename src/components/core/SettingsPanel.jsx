@@ -7,7 +7,18 @@ export function SettingsPanel({ currentView, ...props }) {
     <div className="settings-panel-container">
       <div style={{ flex: 1 }}>
         {currentView === 'pngtuber' && (
-          <AvatarSettings {...props} />
+          <AvatarSettings 
+            {...props} 
+            presets={props.presets}
+            activePresetId={props.activePresetId}
+            setActivePresetId={props.setActivePresetId}
+            activePreset={props.activePreset}
+            addPreset={props.addPreset}
+            duplicatePreset={props.duplicatePreset}
+            deletePreset={props.deletePreset}
+            updatePresetName={props.updatePresetName}
+            updatePresetTrigger={props.updatePresetTrigger}
+          />
         )}
         
         {currentView === 'chat' && (

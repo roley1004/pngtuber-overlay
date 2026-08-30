@@ -24,7 +24,7 @@ const BadgeImg = ({ src, fallback, title }) => {
   );
 };
 
-export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode = 'live', clearTrigger = 0 }) {
+export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode = 'live', clearTrigger = 0, presets = [], onSelectPreset }) {
   const [messages, setMessages] = useState([]);
   const [twitchBadges, setTwitchBadges] = useState(DEFAULT_BADGES);
   const [emotesMap, setEmotesMap] = useState({});
@@ -32,11 +32,21 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
   
   const chatContainerRef = useRef(null);
   const fadeOutRef = useRef(config.fadeOut);
+  const presetsRef = useRef(presets);
+  const onSelectPresetRef = useRef(onSelectPreset);
   const isBottomUp = config.direction !== 'top-down';
 
   useEffect(() => {
     fadeOutRef.current = config.fadeOut;
   }, [config.fadeOut]);
+
+  useEffect(() => {
+    presetsRef.current = presets;
+  }, [presets]);
+
+  useEffect(() => {
+    onSelectPresetRef.current = onSelectPreset;
+  }, [onSelectPreset]);
 
   const removeMessage = useCallback((id) => {
     setMessages(prev => prev.filter(msg => msg.id !== id));
@@ -155,6 +165,18 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
 
     client.on('message', (channel, tags, message) => {
       const msgId = tags.id;
+      const cleanMsg = message.trim().toLowerCase();
+
+      // Evaluación de Comandos de Twitch para cambio de preset (Fase 4)
+      const currentPresets = presetsRef.current || [];
+      const isBroadcasterOrMod = !!tags.badges?.broadcaster || !!tags.badges?.moderator || tags.mod;
+
+      if (isBroadcasterOrMod && currentPresets.length > 0 && onSelectPresetRef.current) {
+        const matchedPreset = currentPresets.find(p => p.disparadores?.twitchCommand && p.disparadores.twitchCommand.trim().toLowerCase() === cleanMsg);
+        if (matchedPreset) {
+          onSelectPresetRef.current(matchedPreset.id);
+        }
+      }
       
       setMessages(prev => {
         if (prev.some(m => m.id === msgId)) return prev;

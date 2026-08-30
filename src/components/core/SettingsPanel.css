@@ -100,6 +100,47 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
 .tab.active { background: #1e1e1e; color: #ffffff; }
 .code-textarea { width: 100%; height: 140px; background: #1e1e1e; border: none; color: #d4d4d4; padding: 12px; font-family: monospace; font-size: 13px; outline: none; resize: vertical; box-sizing: border-box; }
 
+/* ESTILOS DE LA VENTANA MODAL Y CONTROLES DE ATANOS DE TECLADO (HOTKEYS) */
+.hotkey-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(59, 107, 72, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.hotkey-modal-card {
+  background: var(--surface);
+  border-radius: 24px;
+  padding: 24px 32px;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(59, 107, 72, 0.2);
+  border: 2px solid var(--primary);
+}
+
+.hotkey-display-box {
+  background: var(--bg-base);
+  border: 2px dashed var(--primary);
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
 /* FIX RESPONSIVE ADICIONAL */
 @media (max-width: 768px) {
   .settings-panel-container { padding: 16px 16px 48px 16px; }
