@@ -70,10 +70,10 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
   useEffect(() => {
     const loadImages = async () => {
       try {
-        const idle = await getImageFromDB('idle') || localStorage.getItem('obs-pngtuber-img-idle');
-        const talk = await getImageFromDB('talk') || localStorage.getItem('obs-pngtuber-img-talk');
-        const blink = await getImageFromDB('blink') || localStorage.getItem('obs-pngtuber-img-blink');
-        const talkBlink = await getImageFromDB('talkBlink') || localStorage.getItem('obs-pngtuber-img-talkBlink');
+        const idle = (await getImageFromDB('idle')) || localStorage.getItem('obs-pngtuber-img-idle');
+        const talk = (await getImageFromDB('talk')) || localStorage.getItem('obs-pngtuber-img-talk');
+        const blink = (await getImageFromDB('blink')) || localStorage.getItem('obs-pngtuber-img-blink');
+        const talkBlink = (await getImageFromDB('talkBlink')) || localStorage.getItem('obs-pngtuber-img-talkBlink');
         
         setImages({ idle, talk, blink, talkBlink });
       } catch (error) {
@@ -115,7 +115,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
       
       if (!isAvatarOverlay) {
         await saveImageToDB(key, compressedBase64);
-        localStorage.removeItem(`obs-pngtuber-img-${key}`);
+        localStorage.setItem(`obs-pngtuber-img-${key}`, compressedBase64);
       }
     } catch (errorMsg) {
       setFileError(errorMsg);
