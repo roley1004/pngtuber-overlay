@@ -13,7 +13,7 @@ export function Avatar({ isTalking, currentImage, talkIntensity, idleIntensity, 
     <div style={{
       width: '100%', height: '100%',
       display: 'flex', justifyContent: 'center', alignItems: 'flex-end', 
-      padding: '15%', boxSizing: 'border-box'
+      padding: '20px', boxSizing: 'border-box'
     }}>
       <style>{`
         .idle-container {
@@ -21,7 +21,7 @@ export function Avatar({ isTalking, currentImage, talkIntensity, idleIntensity, 
           justify-content: center;
           align-items: flex-end;
           width: 100%;
-          height: 100%;
+          height: 60%;
           transition: transform 0.25s ease-out;
           transform-origin: bottom center;
         }
