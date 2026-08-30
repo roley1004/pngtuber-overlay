@@ -1,5 +1,5 @@
 /* CONTENEDOR PRINCIPAL REFACTORIZADO */
-.settings-panel-container { display: flex; flex-direction: column; min-height: 100%; padding: 24px; box-sizing: border-box; }
+.settings-panel-container { display: flex; flex-direction: column; min-height: min-content; padding: 24px 24px 48px 24px; box-sizing: border-box; }
 
 /* FORMULARIOS Y CONTROLES DEL SIDEBAR */
 .settings-module { display: flex; flex-direction: column; gap: 24px; }
@@ -102,7 +102,10 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
 
 /* FIX RESPONSIVE ADICIONAL */
 @media (max-width: 768px) {
-  .settings-panel-container { padding: 16px; }
+  .settings-panel-container { padding: 16px 16px 48px 16px; }
   .chat-top-row { flex-direction: column; }
   .upload-grid { grid-template-columns: 1fr; }
+  
+  /* FIX: Permite que el sidebar se adapte a la altura de la pantalla y habilita el scroll en móvil */
+  .sidebar { flex: 1; min-height: 0; }
 }
