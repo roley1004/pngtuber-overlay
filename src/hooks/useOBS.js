@@ -8,13 +8,17 @@ export function useOBS({
   setSelectedMic, setSensitivity, setBlinkFrequency, setIsRandomBlink, setBounceIntensity, setImages,
   setAvailableMics, setCurrentVolume, setIsTalking,
   selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, images,
-  twitchInput, setTwitchInput, chatConfig, setChatConfig
+  twitchInput, setTwitchInput, chatConfig, setChatConfig,
+  talkAnimation, setTalkAnimation, idleAnimation, setIdleAnimation,
+  talkIntensity, setTalkIntensity, idleIntensity, setIdleIntensity,
+  isVoiceReactive, setIsVoiceReactive
 }) {
   const [isConnected, setIsConnected] = useState(false);
   const [obsError, setObsError] = useState('');
   const obs = useRef(new OBSWebSocket());
   const knownMics = useRef(new Set());
   const isConnecting = useRef(false);
+  const talkingTimeoutRef = useRef(null);
 
   const imagesStr = JSON.stringify(images || {});
   const chatConfigStr = JSON.stringify(chatConfig || {});
@@ -22,10 +26,26 @@ export function useOBS({
   const imagesRef = useRef(images);
   useEffect(() => { imagesRef.current = images; }, [imagesStr]);
 
-  const payloadRef = useRef({ selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig });
+  const payloadRef = useRef({
+    selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
+    talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive
+  });
+
   useEffect(() => {
-    payloadRef.current = { selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig };
-  }, [selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfigStr]);
+    payloadRef.current = {
+      selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
+      talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive
+    };
+  }, [
+    selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfigStr,
+    talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (talkingTimeoutRef.current) clearTimeout(talkingTimeoutRef.current);
+    };
+  }, []);
 
   // 1. Heartbeat Constante (Sincronización periódica)
   useEffect(() => {
@@ -104,6 +124,11 @@ export function useOBS({
             if (val.images && setImages) setImages(val.images);
             if (val.twitchInput !== undefined && setTwitchInput) setTwitchInput(val.twitchInput);
             if (val.chatConfig !== undefined && setChatConfig) setChatConfig(val.chatConfig);
+            if (val.talkAnimation !== undefined && setTalkAnimation) setTalkAnimation(val.talkAnimation);
+            if (val.idleAnimation !== undefined && setIdleAnimation) setIdleAnimation(val.idleAnimation);
+            if (val.talkIntensity !== undefined && setTalkIntensity) setTalkIntensity(val.talkIntensity);
+            if (val.idleIntensity !== undefined && setIdleIntensity) setIdleIntensity(val.idleIntensity);
+            if (val.isVoiceReactive !== undefined && setIsVoiceReactive) setIsVoiceReactive(val.isVoiceReactive);
           }
         } catch (err) { console.error("Error GetPersistent", err); }
 
@@ -140,6 +165,11 @@ export function useOBS({
             if (data.bounceIntensity !== undefined && setBounceIntensity) setBounceIntensity(data.bounceIntensity);
             if (data.twitchInput !== undefined && setTwitchInput) setTwitchInput(data.twitchInput);
             if (data.chatConfig !== undefined && setChatConfig) setChatConfig(data.chatConfig);
+            if (data.talkAnimation !== undefined && setTalkAnimation) setTalkAnimation(data.talkAnimation);
+            if (data.idleAnimation !== undefined && setIdleAnimation) setIdleAnimation(data.idleAnimation);
+            if (data.talkIntensity !== undefined && setTalkIntensity) setTalkIntensity(data.talkIntensity);
+            if (data.idleIntensity !== undefined && setIdleIntensity) setIdleIntensity(data.idleIntensity);
+            if (data.isVoiceReactive !== undefined && setIsVoiceReactive) setIsVoiceReactive(data.isVoiceReactive);
           } 
           else if (event.action === 'SYNC_IMAGES' && data) {
             if (data.images && setImages) {
@@ -172,7 +202,26 @@ export function useOBS({
             if (micRef && !micRef.current && micList.length > 0 && setSelectedMic) setSelectedMic(micList[0]);
           }
           if (setCurrentVolume) setCurrentVolume(maxVolume);
-          if (setIsTalking && sensRef) setIsTalking(maxVolume > sensRef.current);
+
+          // Lógica con histéresis y retardo
+          if (setIsTalking && sensRef) {
+            const turnOnThreshold = sensRef.current + 2.0; // Margen para evitar saltos por ruido
+
+            if (maxVolume >= turnOnThreshold) {
+              if (talkingTimeoutRef.current) {
+                clearTimeout(talkingTimeoutRef.current);
+                talkingTimeoutRef.current = null;
+              }
+              setIsTalking(true);
+            } else if (maxVolume < sensRef.current) {
+              if (!talkingTimeoutRef.current) {
+                talkingTimeoutRef.current = setTimeout(() => {
+                  setIsTalking(false);
+                  talkingTimeoutRef.current = null;
+                }, 250); // 250ms de gracia al dejar de hablar
+              }
+            }
+          }
         });
       }
     } catch (error) {

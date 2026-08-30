@@ -10,7 +10,6 @@ export function AvatarSettings({
   talkAnimation, setTalkAnimation,
   idleAnimation, setIdleAnimation,
   isSelectOpen, setIsSelectOpen,
-  isSimulating, setIsSimulating,
   handleImageUpload, handleClearImage,
   images, currentVolume, fileError
 }) {
@@ -160,19 +159,6 @@ export function AvatarSettings({
         </div>
 
       </div>
-
-      <div className="simulate-container" style={{ alignItems: 'center' }}>
-        <button 
-          onMouseDown={() => setIsSimulating(true)} onMouseUp={() => setIsSimulating(false)}
-          onMouseLeave={() => setIsSimulating(false)} onTouchStart={() => setIsSimulating(true)}
-          onTouchEnd={() => setIsSimulating(false)}
-          className={`btn-simulate ${isSimulating ? "active" : ""}`}
-        >
-          <span className="material-symbols-outlined">record_voice_over</span> Hablar
-        </button>
-        <span className="simulate-hint">Mantén presionado para probar</span>
-      </div>
-
     </div>
   )
 }

@@ -32,6 +32,34 @@ function App() {
 
   const [mobileTab, setMobileTab] = useState('settings');
 
+  // Lógica del Redimensionador (Resizer)
+  const [sidebarWidth, setSidebarWidth] = useState(360);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const maxWidth = window.innerWidth * 0.4; // 40% máximo de la pantalla
+      const newWidth = Math.max(320, Math.min(e.clientX, maxWidth)); // 320px mínimo
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => setIsResizing(false);
+    
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
@@ -109,10 +137,9 @@ function App() {
   
   const activeTalkingState = isTalking || isSimulating
 
-  // Cálculo dinámico de intensidad según la voz
   const effectiveTalkIntensity = useMemo(() => {
     if (!isVoiceReactive) return talkIntensity;
-    if (isSimulating) return talkIntensity; // Botón simular habla usa el 100% del límite
+    if (isSimulating) return talkIntensity; 
     if (currentVolume < sensitivity) return 0;
     const range = 100 - sensitivity;
     const normalizedVolume = range > 0 ? (currentVolume - sensitivity) / range : 1;
@@ -173,7 +200,10 @@ function App() {
           )}
         </div>
 
-        <div className={`sidebar ${currentView === 'chat' ? 'full-width' : ''} ${currentView === 'pngtuber' && mobileTab === 'preview' ? 'mobile-hidden' : ''}`}>
+        <div 
+          className={`sidebar ${currentView === 'chat' ? 'full-width' : ''} ${currentView === 'pngtuber' && mobileTab === 'preview' ? 'mobile-hidden' : ''}`}
+          style={{ width: currentView === 'pngtuber' ? sidebarWidth : undefined }}
+        >
           <SettingsPanel 
             currentView={currentView} twitchInput={twitchInput} setTwitchInput={setTwitchInput}
             chatConfig={chatConfig} setChatConfig={setChatConfig} defaultChatConfig={defaultChatConfig}
@@ -184,27 +214,50 @@ function App() {
             isVoiceReactive={isVoiceReactive} setIsVoiceReactive={setIsVoiceReactive}
             talkAnimation={talkAnimation} setTalkAnimation={setTalkAnimation} idleAnimation={idleAnimation} setIdleAnimation={setIdleAnimation}
             handleImageUpload={handleImageUpload} handleClearImage={handleClearImage}
-            isSimulating={isSimulating} setIsSimulating={setIsSimulating} isSelectOpen={isSelectOpen} 
-            setIsSelectOpen={setIsSelectOpen} images={images} currentVolume={currentVolume} 
+            isSelectOpen={isSelectOpen} setIsSelectOpen={setIsSelectOpen} images={images} currentVolume={currentVolume} 
             isTalking={activeTalkingState} fileError={fileError} isConnected={isConnected} chatPreview={memoizedTwitchChat} 
           />
         </div>
         
         {currentView === 'pngtuber' && (
-          <div className={`preview-area ${mobileTab === 'settings' ? 'mobile-hidden' : ''}`}>
-            <div className={`preview-container bg-${previewBg}`}>
-              <div className="floating-status">
-                <span className={activeTalkingState ? "dot-listening" : "dot-idle"}>{activeTalkingState ? "●" : "○"}</span>
-                {activeTalkingState ? "Escuchando..." : "En Reposo"}
+          <>
+            <div className={`resizer ${mobileTab === 'settings' ? 'mobile-hidden' : ''}`} onMouseDown={() => setIsResizing(true)}></div>
+            <div className={`preview-area ${mobileTab === 'settings' ? 'mobile-hidden' : ''}`}>
+              <div className={`preview-container bg-${previewBg}`}>
+                
+                <div className="floating-status">
+                  <span className={activeTalkingState ? "dot-listening" : "dot-idle"}>{activeTalkingState ? "●" : "○"}</span>
+                  <span className="status-text-label">{activeTalkingState ? "Escuchando..." : "En Reposo"}</span>
+                  
+                  <button 
+                    onPointerDown={(e) => {
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      setIsSimulating(true);
+                    }}
+                    onPointerUp={(e) => {
+                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                      }
+                      setIsSimulating(false);
+                    }}
+                    onPointerCancel={() => setIsSimulating(false)}
+                    className={`header-sim-btn ${isSimulating ? "active" : ""}`}
+                    title="Mantén presionado para probar"
+                  >
+                    <span className="material-symbols-outlined" style={{fontSize: '18px'}}>record_voice_over</span>
+                    Hablar
+                  </button>
+                </div>
+
+                <div className="floating-bar">
+                  <button className={`icon-btn ${previewBg === 'grid' ? 'active' : ''}`} onClick={() => setPreviewBg('grid')} title="Fondo Transparente">🏁</button>
+                  <button className={`icon-btn ${previewBg === 'chroma' ? 'active' : ''}`} onClick={() => setPreviewBg('chroma')} title="Fondo Croma">🟩</button>
+                  <button className={`icon-btn ${previewBg === 'dark' ? 'active' : ''}`} onClick={() => setPreviewBg('dark')} title="Fondo Oscuro">🌙</button>
+                </div>
+                <Avatar isTalking={activeTalkingState} currentImage={getCurrentImage()} talkIntensity={effectiveTalkIntensity} idleIntensity={idleIntensity} talkAnimation={talkAnimation} idleAnimation={idleAnimation} />
               </div>
-              <div className="floating-bar">
-                <button className={`icon-btn ${previewBg === 'grid' ? 'active' : ''}`} onClick={() => setPreviewBg('grid')} title="Fondo Transparente">🏁</button>
-                <button className={`icon-btn ${previewBg === 'chroma' ? 'active' : ''}`} onClick={() => setPreviewBg('chroma')} title="Fondo Croma">🟩</button>
-                <button className={`icon-btn ${previewBg === 'dark' ? 'active' : ''}`} onClick={() => setPreviewBg('dark')} title="Fondo Oscuro">🌙</button>
-              </div>
-              <Avatar isTalking={activeTalkingState} currentImage={getCurrentImage()} talkIntensity={effectiveTalkIntensity} idleIntensity={idleIntensity} talkAnimation={talkAnimation} idleAnimation={idleAnimation} />
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
