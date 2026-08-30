@@ -1,7 +1,6 @@
 import React from 'react';
 
 export function Avatar({ isTalking, currentImage, talkIntensity, idleIntensity, talkAnimation = 'bounce', idleAnimation = 'none' }) {
-  // Ajustes calibrados de físicas
   const jumpValue = isTalking ? talkIntensity * 0.2 : 0; 
   const squashY = isTalking ? 1 + (talkIntensity * 0.005) : 1; 
   const squashX = isTalking ? 1 - (talkIntensity * 0.0025) : 1; 
@@ -27,7 +26,6 @@ export function Avatar({ isTalking, currentImage, talkIntensity, idleIntensity, 
           transform-origin: bottom center;
         }
 
-        /* Físicas de Reposo */
         .idle-breath { animation: breath 3.5s ease-in-out infinite; transform-origin: bottom center; }
         @keyframes breath { 
           0%, 100% { transform: scaleY(1) scaleX(1); } 
@@ -56,9 +54,11 @@ export function Avatar({ isTalking, currentImage, talkIntensity, idleIntensity, 
         .avatar-img {
           max-height: 100%; max-width: 100%; object-fit: contain;
           will-change: transform;
+          image-rendering: -webkit-optimize-contrast;
+          image-rendering: crisp-edges;
+          transform: translateZ(0);
         }
         
-        /* Modificadores de Habla */
         .talk-bounce { 
           transform-origin: bottom center; 
           transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); 
@@ -78,7 +78,6 @@ export function Avatar({ isTalking, currentImage, talkIntensity, idleIntensity, 
         }
       `}</style>
 
-      {/* Si habla, se retira la clase idle para que vuelva suavemente al centro */}
       <div 
         className={`idle-container ${!isTalking && idleAnimation !== 'none' ? `idle-${idleAnimation}` : ''}`} 
         style={{ '--idle-scale': idleScale }}

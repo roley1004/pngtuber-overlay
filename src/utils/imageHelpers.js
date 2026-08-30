@@ -1,7 +1,7 @@
 /**
  * Comprime y redimensiona una imagen subida por el usuario a formato WebP.
  */
-export const compressImage = (file, maxSizeMB = 2.5) => {
+export const compressImage = (file, maxSizeMB = 5) => {
   return new Promise((resolve, reject) => {
     if (!file) return reject("No se seleccionó ningún archivo.");
     
@@ -15,7 +15,7 @@ export const compressImage = (file, maxSizeMB = 2.5) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_SIZE = 400;
+        const MAX_SIZE = 1080; 
         let width = img.width;
         let height = img.height;
         
@@ -32,9 +32,13 @@ export const compressImage = (file, maxSizeMB = 2.5) => {
         canvas.width = width; 
         canvas.height = height;
         const ctx = canvas.getContext('2d');
+        
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
         ctx.drawImage(img, 0, 0, width, height);
         
-        const compressedBase64 = canvas.toDataURL('image/webp', 0.8);
+        const compressedBase64 = canvas.toDataURL('image/webp', 0.92);
         resolve(compressedBase64);
       };
       img.onerror = () => reject("Error al procesar la imagen.");
