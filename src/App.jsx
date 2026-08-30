@@ -17,7 +17,6 @@ function App() {
   const encodedChat = urlParams.get('chat')
   const isChatOverlay = Boolean(encodedChat)
 
-  // Extraer dirección y contraseña de la URL corta usando nuestra utilidad
   const obsConfigDecoded = useMemo(() => {
     const encoded = encodedAvatar || encodedChat;
     if ((isAvatarOverlay || isChatOverlay) && encoded) {
@@ -30,6 +29,8 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get('view') || 'hub';
   });
+
+  const [mobileTab, setMobileTab] = useState('settings');
 
   useEffect(() => {
     const handlePopState = () => {
@@ -48,6 +49,7 @@ function App() {
     const newUrl = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
     window.history.pushState({}, '', newUrl);
     setCurrentView(view);
+    setMobileTab('settings');
   };
 
   const [password, setPassword] = useState(obsConfigDecoded.p || localStorage.getItem('obs-pngtuber-pass') || '')
@@ -61,8 +63,11 @@ function App() {
 
   const {
     fileError, previewBg, setPreviewBg, selectedMic, setSelectedMic, sensitivity, setSensitivity,
-    blinkFrequency, setBlinkFrequency, isRandomBlink, setIsRandomBlink, bounceIntensity, setBounceIntensity, 
-    images, setImages, micRef, sensRef, handleImageUpload, getCurrentImage
+    blinkFrequency, setBlinkFrequency, isRandomBlink, setIsRandomBlink, 
+    talkIntensity, setTalkIntensity, idleIntensity, setIdleIntensity,
+    isVoiceReactive, setIsVoiceReactive,
+    talkAnimation, setTalkAnimation, idleAnimation, setIdleAnimation, 
+    images, setImages, micRef, sensRef, handleImageUpload, handleClearImage, getCurrentImage
   } = usePNGTuber({ isAvatarOverlay, isTalking, isSimulating })
 
   const { 
@@ -71,12 +76,13 @@ function App() {
 
   const { isConnected, obsError, connectToOBS, handleLogout } = useOBS({
     password, setPassword, serverAddress, isAvatarOverlay, isChatOverlay, micRef, sensRef,
-    setSelectedMic, setSensitivity, setBlinkFrequency, setIsRandomBlink, setBounceIntensity, setImages,
-    setAvailableMics, setCurrentVolume, setIsTalking, selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, images,
+    setSelectedMic, setSensitivity, setBlinkFrequency, setIsRandomBlink, 
+    setBounceIntensity: setTalkIntensity, 
+    setImages,
+    setAvailableMics, setCurrentVolume, setIsTalking, selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity: talkIntensity, images,
     twitchInput, setTwitchInput, chatConfig, setChatConfig
   });
 
-  // Asegura la conexión tan pronto tengamos la contraseña en los Overlays
   useEffect(() => { 
     if (password && !isConnected) connectToOBS();
   }, [password, serverAddress, isConnected]); 
@@ -87,7 +93,6 @@ function App() {
     return () => document.removeEventListener('click', handleClickOutside)
   }, [])
 
-  // Ahora ambas URLs son encriptadas usando la utilidad
   const avatarLinkGenerated = useMemo(() => {
     const encoded = encodeOBSConfig(serverAddress, password);
     return encoded ? `${window.location.origin}${window.location.pathname}?avatar=${encoded}` : '';
@@ -104,7 +109,16 @@ function App() {
   
   const activeTalkingState = isTalking || isSimulating
 
-  // Aislamiento completo de contenedores para evitar problemas de Flexbox en OBS
+  // Cálculo dinámico de intensidad según la voz
+  const effectiveTalkIntensity = useMemo(() => {
+    if (!isVoiceReactive) return talkIntensity;
+    if (isSimulating) return talkIntensity; // Botón simular habla usa el 100% del límite
+    if (currentVolume < sensitivity) return 0;
+    const range = 100 - sensitivity;
+    const normalizedVolume = range > 0 ? (currentVolume - sensitivity) / range : 1;
+    return Math.round(talkIntensity * Math.min(Math.max(normalizedVolume, 0), 1));
+  }, [isVoiceReactive, isSimulating, currentVolume, sensitivity, talkIntensity]);
+
   if (isChatOverlay) {
     return (
       <div style={{width: '100vw', height: '100vh', margin: 0, padding: 0, overflow: 'hidden', backgroundColor: 'transparent'}}>
@@ -116,7 +130,7 @@ function App() {
   if (isAvatarOverlay) {
     return (
       <div className="overlay-mode preview-container" style={{width: '100vw', height: '100vh', margin: 0, padding: 0, backgroundColor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-        <Avatar isTalking={activeTalkingState} currentImage={getCurrentImage()} bounceIntensity={bounceIntensity} />
+        <Avatar isTalking={activeTalkingState} currentImage={getCurrentImage()} talkIntensity={effectiveTalkIntensity} idleIntensity={idleIntensity} talkAnimation={talkAnimation} idleAnimation={idleAnimation} />
       </div>
     )
   }
@@ -141,14 +155,35 @@ function App() {
       />
 
       <div className="editor-body">
-        <div className={`sidebar ${currentView === 'chat' ? 'full-width' : ''}`}>
+        
+        <div className="mobile-tabs">
+          <button 
+            className={`mobile-tab ${mobileTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setMobileTab('settings')}
+          >
+            <span className="material-symbols-outlined">settings</span> Ajustes
+          </button>
+          {currentView === 'pngtuber' && (
+            <button 
+              className={`mobile-tab ${mobileTab === 'preview' ? 'active' : ''}`}
+              onClick={() => setMobileTab('preview')}
+            >
+              <span className="material-symbols-outlined">visibility</span> Vista Previa
+            </button>
+          )}
+        </div>
+
+        <div className={`sidebar ${currentView === 'chat' ? 'full-width' : ''} ${currentView === 'pngtuber' && mobileTab === 'preview' ? 'mobile-hidden' : ''}`}>
           <SettingsPanel 
             currentView={currentView} twitchInput={twitchInput} setTwitchInput={setTwitchInput}
             chatConfig={chatConfig} setChatConfig={setChatConfig} defaultChatConfig={defaultChatConfig}
             selectedMic={selectedMic} setSelectedMic={setSelectedMic} availableMics={availableMics} 
             sensitivity={sensitivity} setSensitivity={setSensitivity} blinkFrequency={blinkFrequency} 
             setBlinkFrequency={setBlinkFrequency} isRandomBlink={isRandomBlink} setIsRandomBlink={setIsRandomBlink}
-            bounceIntensity={bounceIntensity} setBounceIntensity={setBounceIntensity} handleImageUpload={handleImageUpload}
+            talkIntensity={talkIntensity} setTalkIntensity={setTalkIntensity} idleIntensity={idleIntensity} setIdleIntensity={setIdleIntensity}
+            isVoiceReactive={isVoiceReactive} setIsVoiceReactive={setIsVoiceReactive}
+            talkAnimation={talkAnimation} setTalkAnimation={setTalkAnimation} idleAnimation={idleAnimation} setIdleAnimation={setIdleAnimation}
+            handleImageUpload={handleImageUpload} handleClearImage={handleClearImage}
             isSimulating={isSimulating} setIsSimulating={setIsSimulating} isSelectOpen={isSelectOpen} 
             setIsSelectOpen={setIsSelectOpen} images={images} currentVolume={currentVolume} 
             isTalking={activeTalkingState} fileError={fileError} isConnected={isConnected} chatPreview={memoizedTwitchChat} 
@@ -156,7 +191,7 @@ function App() {
         </div>
         
         {currentView === 'pngtuber' && (
-          <div className="preview-area">
+          <div className={`preview-area ${mobileTab === 'settings' ? 'mobile-hidden' : ''}`}>
             <div className={`preview-container bg-${previewBg}`}>
               <div className="floating-status">
                 <span className={activeTalkingState ? "dot-listening" : "dot-idle"}>{activeTalkingState ? "●" : "○"}</span>
@@ -167,7 +202,7 @@ function App() {
                 <button className={`icon-btn ${previewBg === 'chroma' ? 'active' : ''}`} onClick={() => setPreviewBg('chroma')} title="Fondo Croma">🟩</button>
                 <button className={`icon-btn ${previewBg === 'dark' ? 'active' : ''}`} onClick={() => setPreviewBg('dark')} title="Fondo Oscuro">🌙</button>
               </div>
-              <Avatar isTalking={activeTalkingState} currentImage={getCurrentImage()} bounceIntensity={bounceIntensity} />
+              <Avatar isTalking={activeTalkingState} currentImage={getCurrentImage()} talkIntensity={effectiveTalkIntensity} idleIntensity={idleIntensity} talkAnimation={talkAnimation} idleAnimation={idleAnimation} />
             </div>
           </div>
         )}

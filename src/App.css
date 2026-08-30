@@ -29,7 +29,7 @@ body {
 }
 
 /* ESTILOS DE LA APP INTERNA (SPLIT VIEW) */
-.app-layout { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.app-layout { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
 
 /* HEADER EDITOR */
 .editor-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 32px; background: var(--surface); border-bottom: 2px solid #e1e3e1; box-shadow: 0 4px 12px rgba(0,0,0,0.02); z-index: 100; }
@@ -55,10 +55,10 @@ body {
 .obs-error-text { color: var(--error); font-size: 12px; margin: 0; font-weight: 600; text-align: center; }
 
 /* CUERPO DEL EDITOR */
-.editor-body { display: flex; flex: 1; overflow: hidden; }
+.editor-body { display: flex; flex: 1; overflow: hidden; position: relative; }
 .sidebar { width: 360px; min-width: 360px; background: var(--hub-bg); border-right: 2px solid #e1e3e1; overflow-y: auto; }
-.preview-area { flex: 1; position: relative; overflow: hidden; }
-.preview-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
+.preview-area { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+.preview-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; flex: 1; }
 
 .bg-grid { background-image: radial-gradient(#d8dad9 1px, transparent 1px); background-size: 24px 24px; background-color: #f2f4f2; }
 .bg-chroma { background-color: #00ff00; }
@@ -76,3 +76,45 @@ body {
 /* AVATAR */
 .avatar-container { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 .avatar-state { max-width: 90%; max-height: 85vh; object-fit: contain; transition: transform 0.1s ease-out; }
+
+/* TABS MÓVILES & FIX RESPONSIVE */
+.mobile-tabs { display: none; }
+
+@media (max-width: 768px) {
+  .editor-body { flex-direction: column; }
+  
+  .mobile-tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 2px solid #e1e3e1;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  
+  .mobile-tab {
+    flex: 1;
+    padding: 12px;
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    font-weight: 700;
+    color: var(--text-low);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+  }
+  
+  .mobile-tab.active {
+    color: var(--hub-primary);
+    border-bottom-color: var(--hub-primary);
+  }
+  
+  .sidebar { width: 100%; min-width: 100%; border-right: none; }
+  .mobile-hidden { display: none !important; }
+  
+  .editor-header { padding: 12px 16px; }
+  .editor-title { font-size: 18px; }
+}

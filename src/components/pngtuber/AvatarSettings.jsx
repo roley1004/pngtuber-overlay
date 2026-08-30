@@ -4,10 +4,14 @@ export function AvatarSettings({
   sensitivity, setSensitivity,
   blinkFrequency, setBlinkFrequency,
   isRandomBlink, setIsRandomBlink,
-  bounceIntensity, setBounceIntensity,
+  talkIntensity, setTalkIntensity,
+  idleIntensity, setIdleIntensity,
+  isVoiceReactive, setIsVoiceReactive,
+  talkAnimation, setTalkAnimation,
+  idleAnimation, setIdleAnimation,
   isSelectOpen, setIsSelectOpen,
   isSimulating, setIsSimulating,
-  handleImageUpload, 
+  handleImageUpload, handleClearImage,
   images, currentVolume, fileError
 }) {
   
@@ -15,18 +19,27 @@ export function AvatarSettings({
   const thresholdPercent = sensitivity;
   const vuColor = volumePercent >= thresholdPercent ? 'var(--hub-primary)' : '#c0c9bd';
 
-  // Función externa para evitar que React destruya el input al parpadear
   const renderImageCard = (label, stateKey, image) => (
-    <label className="upload-card" key={stateKey}>
-      <input type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(stateKey, e)} />
-      {image ? <img src={image} alt={label} /> : <span>{label}</span>}
-    </label>
+    <div className="upload-card" key={stateKey} style={{ position: 'relative' }}>
+      <label style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        <input type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(stateKey, e)} />
+        {image ? <img src={image} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{label}</span>}
+      </label>
+      {image && (
+        <button 
+          onClick={(e) => handleClearImage(stateKey, e)}
+          style={{ position: 'absolute', top: '6px', right: '6px', background: 'var(--error)', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}
+          title="Borrar imagen"
+        >
+          ✕
+        </button>
+      )}
+    </div>
   );
 
   return (
     <div className="settings-module">
       
-      {/* CARGA DE ESTADOS */}
       <div className="settings-section">
         <h3 className="section-title">Cargar Estados</h3>
         <div className="upload-grid">
@@ -40,7 +53,6 @@ export function AvatarSettings({
 
       <hr className="divider" />
 
-      {/* CAPTURA DE AUDIO */}
       <div className="settings-section">
         <h3 className="section-title">Captura de Audio</h3>
         {!isConnected ? (
@@ -82,12 +94,12 @@ export function AvatarSettings({
 
       <hr className="divider" />
 
-      {/* ANIMACIÓN */}
       <div className="settings-section">
+        <h3 className="section-title">Animación y Movimiento</h3>
+        
         <div className="animation-row">
           <div className="input-group" style={{ flex: 1 }}>
-            <h3 className="section-title">Animación</h3>
-            <label className="input-label">Parpadeo</label>
+            <label className="input-label">Frecuencia de Parpadeo</label>
             <div className="blink-controls">
               <input 
                 type="number" 
@@ -98,27 +110,58 @@ export function AvatarSettings({
                 min="1" max="10" step="0.5"
               />
               <span style={{fontSize: '14px', color: 'var(--text-main)'}}>seg.</span>
+              <label className="checkbox-label" style={{marginLeft: '12px', marginTop: '0'}}>
+                <input type="checkbox" checked={isRandomBlink} onChange={(e) => setIsRandomBlink(e.target.checked)} />
+                <span className="custom-checkbox"></span>
+                Aleatorio
+              </label>
             </div>
-            <label className="checkbox-label">
-              <input type="checkbox" checked={isRandomBlink} onChange={(e) => setIsRandomBlink(e.target.checked)} />
-              <span className="custom-checkbox"></span>
-              Aleatorio
-            </label>
-          </div>
-
-          <div className="input-group" style={{ flex: 1 }}>
-            <h3 className="section-title" style={{visibility: 'hidden'}}>Espacio</h3>
-            <div style={{display: 'flex', justifyContent: 'space-between', marginTop: '-20px'}}>
-              <label className="input-label">Intensidad de rebote</label>
-              <span className="value-label">{bounceIntensity}%</span>
-            </div>
-            <input type="range" className="slider" min="0" max="100" step="1" value={bounceIntensity} onChange={(e) => setBounceIntensity(parseInt(e.target.value))} style={{marginTop: '10px'}} />
           </div>
         </div>
+
+        <div className="animation-row" style={{ marginTop: '16px', alignItems: 'flex-start' }}>
+          <div className="input-group" style={{ flex: 1 }}>
+            <label className="input-label" style={{color: 'var(--hub-primary)'}}>Animación al Hablar</label>
+            <select className="text-input" value={talkAnimation} onChange={e => setTalkAnimation(e.target.value)}>
+              <option value="bounce">Rebote Vertical</option>
+              <option value="squash">Gelatina (Anclada)</option>
+              <option value="tilt">Balanceo Rítmico</option>
+            </select>
+            
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', gap: '8px'}}>
+              <span className="value-label" style={{lineHeight: '1.2'}}>
+                {isVoiceReactive ? "Límite Máx. Intensidad" : "Intensidad de Habla"}
+              </span>
+              <span className="value-label">{talkIntensity}%</span>
+            </div>
+            <input type="range" className="slider" min="0" max="100" step="1" value={talkIntensity} onChange={(e) => setTalkIntensity(parseInt(e.target.value))} />
+            
+            <label className="checkbox-label" style={{marginTop: '14px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none'}}>
+              <input type="checkbox" checked={isVoiceReactive} onChange={(e) => setIsVoiceReactive(e.target.checked)} />
+              <span className="custom-checkbox" style={{flexShrink: 0}}></span>
+              <span style={{fontSize: '13px', lineHeight: '1.3'}}>Reactivo al volumen de voz</span>
+            </label>
+          </div>
+          
+          <div className="input-group" style={{ flex: 1 }}>
+            <label className="input-label" style={{color: 'var(--text-low)'}}>Animación en Reposo</label>
+            <select className="text-input" value={idleAnimation} onChange={e => setIdleAnimation(e.target.value)}>
+              <option value="none">Estático</option>
+              <option value="breath">Respiración</option>
+              <option value="sway">Balanceo</option>
+              <option value="float">Flotación</option>
+            </select>
+            <div style={{display: 'flex', justifyContent: 'space-between', marginTop: '12px'}}>
+              <span className="value-label">Intensidad</span>
+              <span className="value-label">{idleIntensity}%</span>
+            </div>
+            <input type="range" className="slider" min="0" max="100" step="1" value={idleIntensity} onChange={(e) => setIdleIntensity(parseInt(e.target.value))} />
+          </div>
+        </div>
+
       </div>
 
-      {/* BOTÓN SIMULAR HABLA */}
-      <div className="simulate-container">
+      <div className="simulate-container" style={{ alignItems: 'center' }}>
         <button 
           onMouseDown={() => setIsSimulating(true)} onMouseUp={() => setIsSimulating(false)}
           onMouseLeave={() => setIsSimulating(false)} onTouchStart={() => setIsSimulating(true)}
