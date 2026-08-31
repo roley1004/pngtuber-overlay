@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import OBSWebSocket from 'obs-websocket-js';
-import { calculateVolumePercentage } from '../utils/obsHelpers';
+import { calculateVolumePercentage, buildPngTuberPayload } from '../utils/obsHelpers';
 
 export function useOBS({
   password, setPassword, serverAddress, isAvatarOverlay, isChatOverlay,
@@ -21,6 +21,31 @@ export function useOBS({
   const isConnecting = useRef(false);
   const talkingTimeoutRef = useRef(null);
 
+  // Función reutilizable para aplicar datos de sincronización recibidos del panel o del overlay
+  const applySyncData = useCallback((data) => {
+    if (!data) return;
+    if (data.presets && setPresets) setPresets(data.presets);
+    if (data.activePresetId && setActivePresetId) setActivePresetId(data.activePresetId);
+    if (data.selectedMic !== undefined && setSelectedMic) setSelectedMic(data.selectedMic);
+    if (data.sensitivity !== undefined && setSensitivity) setSensitivity(data.sensitivity);
+    if (data.blinkFrequency !== undefined && setBlinkFrequency) setBlinkFrequency(data.blinkFrequency);
+    if (data.isRandomBlink !== undefined && setIsRandomBlink) setIsRandomBlink(data.isRandomBlink);
+    if (data.bounceIntensity !== undefined && setBounceIntensity) setBounceIntensity(data.bounceIntensity);
+    if (data.images && setImages) setImages(data.images);
+    if (data.twitchInput !== undefined && setTwitchInput) setTwitchInput(data.twitchInput);
+    if (data.chatConfig !== undefined && setChatConfig) setChatConfig(data.chatConfig);
+    if (data.talkAnimation !== undefined && setTalkAnimation) setTalkAnimation(data.talkAnimation);
+    if (data.idleAnimation !== undefined && setIdleAnimation) setIdleAnimation(data.idleAnimation);
+    if (data.talkIntensity !== undefined && setTalkIntensity) setTalkIntensity(data.talkIntensity);
+    if (data.idleIntensity !== undefined && setIdleIntensity) setIdleIntensity(data.idleIntensity);
+    if (data.isVoiceReactive !== undefined && setIsVoiceReactive) setIsVoiceReactive(data.isVoiceReactive);
+  }, [
+    setPresets, setActivePresetId, setSelectedMic, setSensitivity,
+    setBlinkFrequency, setIsRandomBlink, setBounceIntensity, setImages,
+    setTwitchInput, setChatConfig, setTalkAnimation, setIdleAnimation,
+    setTalkIntensity, setIdleIntensity, setIsVoiceReactive
+  ]);
+
   const imagesStr = JSON.stringify(images || {});
   const presetsStr = JSON.stringify(presets || []);
   const chatConfigStr = JSON.stringify(chatConfig || {});
@@ -34,56 +59,49 @@ export function useOBS({
   const activePresetIdRef = useRef(activePresetId);
   useEffect(() => { activePresetIdRef.current = activePresetId; }, [activePresetId]);
 
-  const payloadRef = useRef({
+  // Construcción limpia del paquete de datos usando la función auxiliar de obsHelpers.js
+  const payloadRef = useRef(buildPngTuberPayload({
     selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
     talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
     activePresetId, presets
-  });
+  }));
 
   useEffect(() => {
-    payloadRef.current = {
+    payloadRef.current = buildPngTuberPayload({
       selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
       talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
       activePresetId, presets
-    };
+    });
   }, [
     selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfigStr,
     talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
     activePresetId, presetsStr
   ]);
 
+  // Limpieza del temporizador de habla al desmontar el hook
   useEffect(() => {
     return () => {
       if (talkingTimeoutRef.current) clearTimeout(talkingTimeoutRef.current);
     };
   }, []);
 
-  // Escuchador BroadcastChannel para sincronización instantánea entre pestañas de navegador
+  // 1. Escuchador BroadcastChannel: Sincronización instantánea entre pestañas locales del navegador
   useEffect(() => {
     if (typeof window === 'undefined' || !window.BroadcastChannel) return;
     const bc = new BroadcastChannel('pngtuber_overlay_sync');
 
     if (isAvatarOverlay || isChatOverlay) {
       bc.onmessage = (event) => {
-        if (!event.data) return;
-        const { action, data } = event.data;
-        if (action === 'SYNC_AVATAR_FULL' && data) {
-          if (data.presets && setPresets) setPresets(data.presets);
-          if (data.activePresetId && setActivePresetId) setActivePresetId(data.activePresetId);
-          if (data.images && setImages) setImages(data.images);
-          if (data.talkAnimation !== undefined && setTalkAnimation) setTalkAnimation(data.talkAnimation);
-          if (data.idleAnimation !== undefined && setIdleAnimation) setIdleAnimation(data.idleAnimation);
-          if (data.talkIntensity !== undefined && setTalkIntensity) setTalkIntensity(data.talkIntensity);
-          if (data.idleIntensity !== undefined && setIdleIntensity) setIdleIntensity(data.idleIntensity);
-          if (data.isVoiceReactive !== undefined && setIsVoiceReactive) setIsVoiceReactive(data.isVoiceReactive);
+        if (event.data?.action === 'SYNC_AVATAR_FULL' && event.data.data) {
+          applySyncData(event.data.data);
         }
       };
     }
 
     return () => bc.close();
-  }, [isAvatarOverlay, isChatOverlay, setPresets, setActivePresetId, setImages, setTalkAnimation, setIdleAnimation, setTalkIntensity, setIdleIntensity, setIsVoiceReactive]);
+  }, [isAvatarOverlay, isChatOverlay, applySyncData]);
 
-  // 1. Heartbeat Constante (Sincronización periódica)
+  // 2. Heartbeat Constante: Transmisión periódica cada 3 segundos hacia OBS WebSocket
   useEffect(() => {
     if (isConnected && !isAvatarOverlay && !isChatOverlay && obs.current) {
       const syncData = () => {
@@ -105,38 +123,38 @@ export function useOBS({
     }
   }, [isConnected, isAvatarOverlay, isChatOverlay]);
 
-  // 2. Sincronización instantánea al cambiar Preset/Avatar o modificar configuraciones
+  // 3. Emisión instantánea: Dispara los cambios a BroadcastChannel y OBS WebSocket inmediatamente al interactuar con la UI
   useEffect(() => {
     if (!isAvatarOverlay && !isChatOverlay) {
-      const currentPayload = {
+      const currentPayload = buildPngTuberPayload({
         selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
         talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
-        activePresetId, presets
-      };
+        activePresetId, presets, images
+      });
 
-      // Transmisión directa e instantánea mediante BroadcastChannel
+      // Transmisión local entre pestañas
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         try {
           const bc = new BroadcastChannel('pngtuber_overlay_sync');
-          bc.postMessage({ action: 'SYNC_AVATAR_FULL', data: { ...currentPayload, images } });
+          bc.postMessage({ action: 'SYNC_AVATAR_FULL', data: currentPayload });
           bc.close();
         } catch (e) {}
       }
 
-      // Transmisión mediante OBS WebSocket
+      // Transmisión y persistencia en OBS Studio
       if (isConnected && obs.current) {
         obs.current.call('BroadcastCustomEvent', {
           eventData: { action: 'SYNC_IMAGES', data: { images, activePresetId, presets } }
         }).catch(() => {});
 
         obs.current.call('BroadcastCustomEvent', {
-          eventData: { action: 'SYNC_PNGTUBER', data: { ...currentPayload, images } }
+          eventData: { action: 'SYNC_PNGTUBER', data: currentPayload }
         }).catch(() => {});
 
         obs.current.call('SetPersistentData', {
           realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
           slotName: 'StreamTools_PNGTuber',
-          slotValue: { ...currentPayload, images }
+          slotValue: currentPayload
         }).catch(() => {
           obs.current.call('SetPersistentData', {
             realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
@@ -147,24 +165,12 @@ export function useOBS({
       }
     }
   }, [
-    imagesStr,
-    activePresetId,
-    presetsStr,
-    talkAnimation,
-    idleAnimation,
-    talkIntensity,
-    idleIntensity,
-    isVoiceReactive,
-    selectedMic,
-    sensitivity,
-    blinkFrequency,
-    isRandomBlink,
-    bounceIntensity,
-    isConnected,
-    isAvatarOverlay,
-    isChatOverlay
+    imagesStr, activePresetId, presetsStr, talkAnimation, idleAnimation,
+    talkIntensity, idleIntensity, isVoiceReactive, selectedMic, sensitivity,
+    blinkFrequency, isRandomBlink, bounceIntensity, isConnected, isAvatarOverlay, isChatOverlay
   ]);
 
+  // Cierra la conexión de OBS y limpia las credenciales en LocalStorage
   const handleLogout = () => {
     try { obs.current.disconnect(); } catch (e) {}
     setIsConnected(false);
@@ -173,6 +179,7 @@ export function useOBS({
     localStorage.removeItem('obs-pngtuber-pass');
   };
 
+  // Conexión principal con OBS WebSocket v5
   const connectToOBS = async () => {
     if (!password || !serverAddress || isConnecting.current || isConnected) return;
     
@@ -190,30 +197,15 @@ export function useOBS({
       setIsConnected(true);
       setObsError('');
 
-      // Carga inicial en el Overlay + Solicitud activa al panel principal
+      // Carga de configuración persistente desde OBS Studio al iniciar el overlay
       if (isAvatarOverlay || isChatOverlay) {
         try {
           const data = await obs.current.call('GetPersistentData', {
             realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
             slotName: 'StreamTools_PNGTuber'
           });
-          if (data && data.slotValue) {
-            const val = data.slotValue;
-            if (val.presets && setPresets) setPresets(val.presets);
-            if (val.activePresetId && setActivePresetId) setActivePresetId(val.activePresetId);
-            if (val.selectedMic !== undefined && setSelectedMic) setSelectedMic(val.selectedMic);
-            if (val.sensitivity !== undefined && setSensitivity) setSensitivity(val.sensitivity);
-            if (val.blinkFrequency !== undefined && setBlinkFrequency) setBlinkFrequency(val.blinkFrequency);
-            if (val.isRandomBlink !== undefined && setIsRandomBlink) setIsRandomBlink(val.isRandomBlink);
-            if (val.bounceIntensity !== undefined && setBounceIntensity) setBounceIntensity(val.bounceIntensity);
-            if (val.images && setImages) setImages(val.images);
-            if (val.twitchInput !== undefined && setTwitchInput) setTwitchInput(val.twitchInput);
-            if (val.chatConfig !== undefined && setChatConfig) setChatConfig(val.chatConfig);
-            if (val.talkAnimation !== undefined && setTalkAnimation) setTalkAnimation(val.talkAnimation);
-            if (val.idleAnimation !== undefined && setIdleAnimation) setIdleAnimation(val.idleAnimation);
-            if (val.talkIntensity !== undefined && setTalkIntensity) setTalkIntensity(val.talkIntensity);
-            if (val.idleIntensity !== undefined && setIdleIntensity) setIdleIntensity(val.idleIntensity);
-            if (val.isVoiceReactive !== undefined && setIsVoiceReactive) setIsVoiceReactive(val.isVoiceReactive);
+          if (data?.slotValue) {
+            applySyncData(data.slotValue);
           }
         } catch (err) { console.error("Error GetPersistent", err); }
 
@@ -222,14 +214,14 @@ export function useOBS({
         }).catch(() => {});
       }
 
-      // Escuchador de eventos personalizados con lectura corregida
+      // Escucha de eventos personalizados provenientes de OBS
       obs.current.on('CustomEvent', (event) => {
         if (!event) return;
         const evtData = event.eventData || event;
         const action = evtData.action;
         const data = evtData.data;
 
-        // El Panel principal responde a peticiones del Overlay
+        // Responder a peticiones del overlay desde el panel principal
         if (!isAvatarOverlay && !isChatOverlay) {
           if (action === 'REQUEST_SYNC') {
             obs.current.call('BroadcastCustomEvent', {
@@ -256,24 +248,10 @@ export function useOBS({
           }
         }
 
-        // El Overlay aplica los cambios recibidos
+        // Aplicar datos recibidos en el overlay
         if (isAvatarOverlay || isChatOverlay) {
           if (action === 'SYNC_PNGTUBER' && data) {
-            if (data.presets && setPresets) setPresets(data.presets);
-            if (data.activePresetId && setActivePresetId) setActivePresetId(data.activePresetId);
-            if (data.selectedMic !== undefined && setSelectedMic) setSelectedMic(data.selectedMic);
-            if (data.sensitivity !== undefined && setSensitivity) setSensitivity(data.sensitivity);
-            if (data.blinkFrequency !== undefined && setBlinkFrequency) setBlinkFrequency(data.blinkFrequency);
-            if (data.isRandomBlink !== undefined && setIsRandomBlink) setIsRandomBlink(data.isRandomBlink);
-            if (data.bounceIntensity !== undefined && setBounceIntensity) setBounceIntensity(data.bounceIntensity);
-            if (data.twitchInput !== undefined && setTwitchInput) setTwitchInput(data.twitchInput);
-            if (data.chatConfig !== undefined && setChatConfig) setChatConfig(data.chatConfig);
-            if (data.talkAnimation !== undefined && setTalkAnimation) setTalkAnimation(data.talkAnimation);
-            if (data.idleAnimation !== undefined && setIdleAnimation) setIdleAnimation(data.idleAnimation);
-            if (data.talkIntensity !== undefined && setTalkIntensity) setTalkIntensity(data.talkIntensity);
-            if (data.idleIntensity !== undefined && setIdleIntensity) setIdleIntensity(data.idleIntensity);
-            if (data.isVoiceReactive !== undefined && setIsVoiceReactive) setIsVoiceReactive(data.isVoiceReactive);
-            if (data.images && setImages) setImages(data.images);
+            applySyncData(data);
           } 
           else if (action === 'SYNC_IMAGES' && data) {
             if (data.presets && setPresets) setPresets(data.presets);
@@ -289,12 +267,16 @@ export function useOBS({
         }
       });
 
+      // Captura de niveles de volumen en tiempo real
       if (!isChatOverlay) {
         obs.current.on('InputVolumeMeters', (data) => {
           let maxVolume = 0;
           let newMicsFound = false;
           data.inputs.forEach(input => {
-            if (!knownMics.current.has(input.inputName)) { knownMics.current.add(input.inputName); newMicsFound = true; }
+            if (!knownMics.current.has(input.inputName)) { 
+              knownMics.current.add(input.inputName); 
+              newMicsFound = true; 
+            }
             if (micRef && input.inputName === micRef.current && input.inputLevelsMul) {
               input.inputLevelsMul.forEach(channel => { 
                 const percent = calculateVolumePercentage(channel);
@@ -302,6 +284,7 @@ export function useOBS({
               });
             }
           });
+          
           if (newMicsFound && setAvailableMics) {
             const micList = Array.from(knownMics.current);
             setAvailableMics(micList);
@@ -309,7 +292,7 @@ export function useOBS({
           }
           if (setCurrentVolume) setCurrentVolume(maxVolume);
 
-          // Lógica con histéresis y retardo
+          // Control de animación 'hablando' mediante detección de umbral e histéresis
           if (setIsTalking && sensRef) {
             const turnOnThreshold = sensRef.current + 2.0;
 

@@ -1,8 +1,17 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import tmi from 'tmi.js';
 import './TwitchChat.css';
-import { DEFAULT_BADGES, getContrastColor, staticDummyMessages } from '../../utils/chatHelpers';
+import { 
+  DEFAULT_BADGES, 
+  getContrastColor, 
+  staticDummyMessages,
+  loadThirdPartyEmotes,
+  getBadgeSrc,
+  renderParsedMessage,
+  getCustomHtmlParsedText
+} from '../../utils/chatHelpers';
 
+// Componente pequeño que renderiza la imagen de la insignia o un emoji si ocurre un error al cargarla
 const BadgeImg = ({ src, fallback, title }) => {
   const [error, setError] = useState(false);
   
@@ -25,6 +34,7 @@ const BadgeImg = ({ src, fallback, title }) => {
 };
 
 export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode = 'live', clearTrigger = 0, presets = [], onSelectPreset }) {
+  // Estados para manejar los datos del chat
   const [messages, setMessages] = useState([]);
   const [twitchBadges, setTwitchBadges] = useState(DEFAULT_BADGES);
   const [emotesMap, setEmotesMap] = useState({});
@@ -36,6 +46,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
   const onSelectPresetRef = useRef(onSelectPreset);
   const isBottomUp = config.direction !== 'top-down';
 
+  // Sincronizamos las variables de configuración con las referencias para usarlas en los eventos de tmi sin retrasos
   useEffect(() => {
     fadeOutRef.current = config.fadeOut;
   }, [config.fadeOut]);
@@ -48,14 +59,17 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     onSelectPresetRef.current = onSelectPreset;
   }, [onSelectPreset]);
 
+  // Función auxiliar para borrar un mensaje por su ID (útil para el desvanecimiento)
   const removeMessage = useCallback((id) => {
     setMessages(prev => prev.filter(msg => msg.id !== id));
   }, []);
 
+  // Escucha el botón "Limpiar Chat" desde la configuración
   useEffect(() => {
     if (clearTrigger > 0) setMessages([]);
   }, [clearTrigger]);
 
+  // Llama a la API local (Serverless) para obtener las insignias de sub específicas del canal
   useEffect(() => {
     const query = targetChannel ? `?channel=${encodeURIComponent(targetChannel.replace('#', '').trim().toLowerCase())}` : '';
     
@@ -72,90 +86,20 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
       .catch(() => {}); 
   }, [targetChannel]);
 
+  // Carga los emotes de las extensiones de navegador a través del helper importado
   useEffect(() => {
-    if (!targetChannel) return;
-    const cleanChannel = targetChannel.replace('#', '').trim().toLowerCase();
     let isMounted = true;
-
-    const loadExtraEmotes = async () => {
-      const loadedEmotes = {};
-
-      try {
-        if (config.emotes?.bttv !== false) {
-          const bttvGlobal = await fetch('https://api.betterttv.net/3/cached/emotes/global').then(r => r.json()).catch(() => []);
-          if (Array.isArray(bttvGlobal)) {
-            bttvGlobal.forEach(e => { loadedEmotes[e.code] = `https://cdn.betterttv.net/emote/${e.id}/1x`; });
-          }
-        }
-
-        if (config.emotes?.ffz !== false) {
-          const ffzGlobal = await fetch('https://api.frankerfacez.com/v1/set/global').then(r => r.json()).catch(() => null);
-          if (ffzGlobal?.sets) {
-            Object.values(ffzGlobal.sets).forEach(set => {
-              set.emoticons?.forEach(e => {
-                const url = e.urls['1'] || Object.values(e.urls)[0];
-                loadedEmotes[e.name] = url.startsWith('//') ? `https:${url}` : url;
-              });
-            });
-          }
-        }
-
-        if (config.emotes?.seventv !== false) {
-          const svnGlobal = await fetch('https://7tv.io/v3/emote-sets/global').then(r => r.json()).catch(() => null);
-          if (svnGlobal?.emotes) {
-            svnGlobal.emotes.forEach(e => {
-              const hostUrl = e.data?.host?.url;
-              if (hostUrl) loadedEmotes[e.name] = `https:${hostUrl}/1x.webp`;
-            });
-          }
-        }
-
-        const idRes = await fetch(`https://decapi.me/twitch/id/${cleanChannel}`).then(r => r.text()).catch(() => '');
-        const twitchId = idRes.trim();
-
-        if (twitchId && !isNaN(twitchId)) {
-          if (config.emotes?.bttv !== false) {
-            const bttvChan = await fetch(`https://api.betterttv.net/3/cached/users/twitch/${twitchId}`).then(r => r.json()).catch(() => null);
-            if (bttvChan) {
-              [...(bttvChan.channelEmotes || []), ...(bttvChan.sharedEmotes || [])].forEach(e => {
-                loadedEmotes[e.code] = `https://cdn.betterttv.net/emote/${e.id}/1x`;
-              });
-            }
-          }
-
-          if (config.emotes?.seventv !== false) {
-            const svnChan = await fetch(`https://7tv.io/v3/users/twitch/${twitchId}`).then(r => r.json()).catch(() => null);
-            if (svnChan?.emote_set?.emotes) {
-              svnChan.emote_set.emotes.forEach(e => {
-                const hostUrl = e.data?.host?.url;
-                if (hostUrl) loadedEmotes[e.name] = `https:${hostUrl}/1x.webp`;
-              });
-            }
-          }
-        }
-
-        if (config.emotes?.ffz !== false) {
-          const ffzChan = await fetch(`https://api.frankerfacez.com/v1/room/${cleanChannel}`).then(r => r.json()).catch(() => null);
-          if (ffzChan?.sets) {
-            Object.values(ffzChan.sets).forEach(set => {
-              set.emoticons?.forEach(e => {
-                const url = e.urls['1'] || Object.values(e.urls)[0];
-                loadedEmotes[e.name] = url.startsWith('//') ? `https:${url}` : url;
-              });
-            });
-          }
-        }
-
-        if (isMounted) setEmotesMap(loadedEmotes);
-      } catch (err) {
-        console.error("Error al cargar emotes extra:", err);
-      }
+    
+    const fetchEmotes = async () => {
+      const loadedEmotes = await loadThirdPartyEmotes(targetChannel, config);
+      if (isMounted) setEmotesMap(loadedEmotes);
     };
 
-    loadExtraEmotes();
+    fetchEmotes();
     return () => { isMounted = false; };
   }, [targetChannel, config.emotes?.bttv, config.emotes?.ffz, config.emotes?.seventv]);
 
+  // Conexión principal y escucha de mensajes en Twitch
   useEffect(() => {
     if (!targetChannel) return;
 
@@ -167,7 +111,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
       const msgId = tags.id;
       const cleanMsg = message.trim().toLowerCase();
 
-      // Evaluación de Comandos de Twitch para cambio de preset (Fase 4)
+      // Evaluación de comandos: Si quien habla es moderador o streamer, verifica si activó un preset del PNGTuber
       const currentPresets = presetsRef.current || [];
       const isBroadcasterOrMod = !!tags.badges?.broadcaster || !!tags.badges?.moderator || tags.mod;
 
@@ -178,6 +122,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
         }
       }
       
+      // Construye el objeto del mensaje y lo guarda (limita la lista a los últimos 100 mensajes para evitar lag)
       setMessages(prev => {
         if (prev.some(m => m.id === msgId)) return prev;
 
@@ -202,6 +147,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
         return [...prev.slice(-99), newMsg];
       });
 
+      // Si el chat está en OBS y tiene desvanecimiento activo, programa su borrado
       const currentFadeOut = fadeOutRef.current;
       if (isOverlayMode && currentFadeOut > 0) {
         setTimeout(() => removeMessage(msgId), (currentFadeOut + 0.5) * 1000);
@@ -213,19 +159,15 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     };
   }, [targetChannel, isOverlayMode, removeMessage]);
 
+  // Detiene el scroll automático si el usuario sube a leer el chat (solo funciona en el modo de previsualización)
   const handleScroll = () => {
     if (isOverlayMode) return;
     const el = chatContainerRef.current;
     if (!el) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = el;
-    let distanceToEdge = 0;
-
-    if (isBottomUp) {
-      distanceToEdge = scrollHeight - scrollTop - clientHeight;
-    } else {
-      distanceToEdge = scrollTop;
-    }
+    const distanceToEdge = isBottomUp 
+      ? el.scrollHeight - el.scrollTop - el.clientHeight 
+      : el.scrollTop;
 
     if (distanceToEdge > 30) {
       setIsAutoScrollPaused(true);
@@ -234,6 +176,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     }
   };
 
+  // Mueve el chat hacia abajo (o arriba según la dirección) cuando llega un mensaje nuevo
   useEffect(() => {
     if (isOverlayMode || isAutoScrollPaused) return;
     const el = chatContainerRef.current;
@@ -244,6 +187,7 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     }
   }, [messages, isBottomUp, isAutoScrollPaused, isOverlayMode]);
 
+  // Botón para volver al mensaje más reciente si se pausó el scroll
   const scrollToNewest = () => {
     setIsAutoScrollPaused(false);
     const el = chatContainerRef.current;
@@ -255,8 +199,10 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
     }
   };
 
+  // Determina si usa los mensajes reales o los mensajes estáticos de prueba
   const sourceMessages = (!isOverlayMode && previewMode === 'test') ? staticDummyMessages : messages;
 
+  // Filtra comandos u oculta a los bots de Twitch si la opción está activada
   const filteredMessages = sourceMessages.filter(msg => {
     if (config.hideCommands && msg.message.startsWith('!')) return false;
     if (config.hideBots && (msg.username.toLowerCase().includes('bot') || msg.username.toLowerCase() === 'nightbot' || msg.username.toLowerCase() === 'streamelements')) return false;
@@ -269,137 +215,6 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
 
   const buttonTextColor = getContrastColor(config.previewBg || '#333333');
   const buttonBorderColor = buttonTextColor === '#111111' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.6)';
-
-  const getBadgeSrc = (msg, setId) => {
-    const targetVersion = msg.rawBadges?.[setId];
-    if (!targetVersion) return null;
-
-    const setBadges = twitchBadges[setId] || DEFAULT_BADGES[setId];
-    if (!setBadges) return null;
-
-    if (setBadges[targetVersion]) {
-      return setBadges[targetVersion];
-    }
-
-    const numericTarget = parseInt(targetVersion, 10);
-    if (!isNaN(numericTarget)) {
-      const availableVersions = Object.keys(setBadges)
-        .map(v => parseInt(v, 10))
-        .filter(v => !isNaN(v) && v <= numericTarget)
-        .sort((a, b) => b - a);
-
-      if (availableVersions.length > 0) {
-        return setBadges[availableVersions[0]];
-      }
-    }
-
-    const firstAvailableKey = Object.keys(setBadges)[0];
-    return setBadges[firstAvailableKey] || null;
-  };
-
-  const renderParsedMessage = (msgObj) => {
-    const { message, emotesTags } = msgObj;
-    if (!message) return null;
-
-    const twitchEmotes = [];
-    if (emotesTags) {
-      Object.keys(emotesTags).forEach(id => {
-        emotesTags[id].forEach(range => {
-          const [start, end] = range.split('-').map(Number);
-          twitchEmotes.push({
-            start, end, id,
-            code: message.slice(start, end + 1),
-            url: `https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/2.0`
-          });
-        });
-      });
-    }
-
-    twitchEmotes.sort((a, b) => a.start - b.start);
-
-    const parts = [];
-    let lastIndex = 0;
-
-    twitchEmotes.forEach(emote => {
-      if (emote.start > lastIndex) {
-        parts.push({ type: 'text', content: message.slice(lastIndex, emote.start) });
-      }
-      parts.push({ type: 'twitch', url: emote.url, code: emote.code });
-      lastIndex = emote.end + 1;
-    });
-
-    if (lastIndex < message.length) {
-      parts.push({ type: 'text', content: message.slice(lastIndex) });
-    }
-    if (parts.length === 0) {
-      parts.push({ type: 'text', content: message });
-    }
-
-    return parts.map((part, pIdx) => {
-      if (part.type === 'twitch') {
-        return (
-          <img 
-            key={`tw-${pIdx}`} src={part.url} alt={part.code} title={part.code} 
-            className="chat-emote-img" 
-          />
-        );
-      }
-
-      const words = part.content.split(' ');
-      return words.map((word, wIdx) => {
-        const emoteUrl = emotesMap[word];
-        const isLast = wIdx === words.length - 1;
-        if (emoteUrl) {
-          return (
-            <React.Fragment key={`3rd-${pIdx}-${wIdx}`}>
-              <img src={emoteUrl} alt={word} title={word} className="chat-emote-img" />
-              {!isLast && ' '}
-            </React.Fragment>
-          );
-        }
-        return word + (!isLast ? ' ' : '');
-      });
-    });
-  };
-
-  const getCustomHtmlParsedText = (msgObj) => {
-    const { message, emotesTags } = msgObj;
-    if (!message) return '';
-
-    const twitchEmotes = [];
-    if (emotesTags) {
-      Object.keys(emotesTags).forEach(id => {
-        emotesTags[id].forEach(range => {
-          const [start, end] = range.split('-').map(Number);
-          twitchEmotes.push({ start, end, id, code: message.slice(start, end + 1), url: `https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/2.0` });
-        });
-      });
-    }
-    twitchEmotes.sort((a, b) => a.start - b.start);
-
-    let resultHtml = '';
-    let lastIndex = 0;
-
-    const processText = (text) => {
-      return text.split(' ').map(w => emotesMap[w] 
-        ? `<img src="${emotesMap[w]}" alt="${w}" title="${w}" class="chat-emote-img" />` 
-        : w).join(' ');
-    };
-
-    twitchEmotes.forEach(emote => {
-      if (emote.start > lastIndex) {
-        resultHtml += processText(message.slice(lastIndex, emote.start));
-      }
-      resultHtml += `<img src="${emote.url}" alt="${emote.code}" title="${emote.code}" class="chat-emote-img" />`;
-      lastIndex = emote.end + 1;
-    });
-
-    if (lastIndex < message.length) {
-      resultHtml += processText(message.slice(lastIndex));
-    }
-
-    return resultHtml;
-  };
 
   return (
     <div className="twitch-chat-wrapper">
@@ -420,8 +235,9 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
         {displayMessages.map(msg => {
           const animationStyle = shouldFadeOut ? { animation: `forceFadeOutAnim ${config.fadeOut}s forwards` } : {};
 
+          // Renderizado para modo Avanzado (HTML Personalizado del usuario)
           if (config.isAdvanced && config.customHTML && config.customHTML.includes('{message}')) {
-            const parsedTextHtml = getCustomHtmlParsedText(msg);
+            const parsedTextHtml = getCustomHtmlParsedText(msg, emotesMap);
 
             const customRender = config.customHTML
               .replace(/{username}/g, `<span style="color: ${msg.color}">${msg.username}</span>`)
@@ -430,20 +246,21 @@ export function TwitchChat({ targetChannel, isOverlayMode, config, previewMode =
             return <div key={msg.id} className={`chat-message theme-${config.theme} ${shouldFadeOut ? 'chat-fade-active' : ''}`} style={animationStyle} dangerouslySetInnerHTML={{ __html: customRender }} />;
           }
 
+          // Renderizado estándar de los mensajes
           return (
             <div key={msg.id} className={`chat-message theme-${config.theme} ${shouldFadeOut ? 'chat-fade-active' : ''}`} style={animationStyle}>
               <span className="chat-badges">
                 {config.badges.platform && msg.roles.platform && <BadgeImg src="https://cdn-icons-png.flaticon.com/128/5968/5968819.png" fallback="🟣" title="Twitch" />}
-                {msg.roles.broadcaster && <BadgeImg src={getBadgeSrc(msg, 'broadcaster')} fallback="🎥" title="Broadcaster" />}
-                {config.badges.mod && msg.roles.mod && <BadgeImg src={getBadgeSrc(msg, 'moderator')} fallback="🛡️" title="Moderador" />}
-                {config.badges.vip && msg.roles.vip && <BadgeImg src={getBadgeSrc(msg, 'vip')} fallback="💎" title="VIP" />}
-                {config.badges.sub && msg.roles.subscriber && <BadgeImg src={msg.rawBadges?.founder ? (getBadgeSrc(msg, 'founder') || getBadgeSrc(msg, 'subscriber')) : getBadgeSrc(msg, 'subscriber')} fallback="⭐" title="Suscriptor" />}
-                {config.badges.turbo && msg.roles.turbo && <BadgeImg src={getBadgeSrc(msg, 'turbo')} fallback="🔋" title="Turbo" />}
-                {config.badges.prime && msg.roles.prime && <BadgeImg src={getBadgeSrc(msg, 'premium')} fallback="👑" title="Prime" />}
-                {config.badges.bits && msg.roles.bits && <BadgeImg src={getBadgeSrc(msg, 'bits')} fallback="🪙" title="Bits" />}
+                {msg.roles.broadcaster && <BadgeImg src={getBadgeSrc(msg, 'broadcaster', twitchBadges)} fallback="🎥" title="Broadcaster" />}
+                {config.badges.mod && msg.roles.mod && <BadgeImg src={getBadgeSrc(msg, 'moderator', twitchBadges)} fallback="🛡️" title="Moderador" />}
+                {config.badges.vip && msg.roles.vip && <BadgeImg src={getBadgeSrc(msg, 'vip', twitchBadges)} fallback="💎" title="VIP" />}
+                {config.badges.sub && msg.roles.subscriber && <BadgeImg src={msg.rawBadges?.founder ? (getBadgeSrc(msg, 'founder', twitchBadges) || getBadgeSrc(msg, 'subscriber', twitchBadges)) : getBadgeSrc(msg, 'subscriber', twitchBadges)} fallback="⭐" title="Suscriptor" />}
+                {config.badges.turbo && msg.roles.turbo && <BadgeImg src={getBadgeSrc(msg, 'turbo', twitchBadges)} fallback="🔋" title="Turbo" />}
+                {config.badges.prime && msg.roles.prime && <BadgeImg src={getBadgeSrc(msg, 'premium', twitchBadges)} fallback="👑" title="Prime" />}
+                {config.badges.bits && msg.roles.bits && <BadgeImg src={getBadgeSrc(msg, 'bits', twitchBadges)} fallback="🪙" title="Bits" />}
               </span>
               <span className="chat-username" style={{ color: msg.color }}>{msg.username}:</span>
-              <span className="chat-text">{renderParsedMessage(msg)}</span>
+              <span className="chat-text">{renderParsedMessage(msg, emotesMap)}</span>
             </div>
           );
         })}

@@ -1,16 +1,19 @@
-import React, { useState } from 'react'
+import React, { useState } from 'react';
 
+// Panel de configuración para personalizar la apariencia, comportamiento y filtros del chat de Twitch
 export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, defaultConfig, chatPreview }) {
-  const [newBlacklistWord, setNewBlacklistWord] = useState('')
-  const [activeTab, setActiveTab] = useState('html')
-  
-  const [isChannelLocked, setIsChannelLocked] = useState(!!twitchInput)
-  const [previewMode, setPreviewMode] = useState('test')
-  const [clearTrigger, setClearTrigger] = useState(0)
+  // Estados locales para la lista negra, pestañas del editor y control del canal
+  const [newBlacklistWord, setNewBlacklistWord] = useState('');
+  const [activeTab, setActiveTab] = useState('html');
+  const [isChannelLocked, setIsChannelLocked] = useState(!!twitchInput);
+  const [previewMode, setPreviewMode] = useState('test');
+  const [clearTrigger, setClearTrigger] = useState(0);
 
-  const updateConfig = (key, value) => setConfig(prev => ({ ...prev, [key]: value }))
-  const updateNestedConfig = (parent, key, value) => setConfig(prev => ({ ...prev, [parent]: { ...prev[parent], [key]: value } }))
+  // Funciones auxiliares para actualizar la configuración global de forma limpia
+  const updateConfig = (key, value) => setConfig(prev => ({ ...prev, [key]: value }));
+  const updateNestedConfig = (parent, key, value) => setConfig(prev => ({ ...prev, [parent]: { ...prev[parent], [key]: value } }));
 
+  // Cambia el tema visual del chat y asigna automáticamente una fuente tipográfica recomendada
   const handleThemeChange = (e) => {
     const newTheme = e.target.value;
     let newFont = 'Inter, sans-serif';
@@ -21,27 +24,32 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
     setConfig(prev => ({ ...prev, theme: newTheme, fontFamily: newFont }));
   };
 
+  // Agrega un usuario a la lista negra para ocultar sus mensajes al presionar Enter
   const handleAddBlacklist = (e) => {
     if (e.key === 'Enter' && newBlacklistWord.trim()) {
-      updateConfig('blacklist', [...config.blacklist, newBlacklistWord.trim()])
-      setNewBlacklistWord('')
+      updateConfig('blacklist', [...config.blacklist, newBlacklistWord.trim()]);
+      setNewBlacklistWord('');
     }
-  }
+  };
   
+  // Elimina un usuario de la lista negra por su índice
   const removeBlacklist = (index) => {
-    const updated = [...config.blacklist]
-    updated.splice(index, 1)
-    updateConfig('blacklist', updated)
-  }
+    const updated = [...config.blacklist];
+    updated.splice(index, 1);
+    updateConfig('blacklist', updated);
+  };
 
   return (
     <div className="chat-layout-wrapper">
       <div className="chat-top-row">
         
+        {/* Columna Izquierda: Opciones Principales de Apariencia */}
         <div className="chat-settings-col">
+          
+          {/* Configuración del Canal de Twitch */}
           <div className="inline-input-group">
             <label className="input-label">Canal Twitch</label>
-            <div style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input 
                   type="text" 
@@ -77,6 +85,7 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
             </div>
           </div>
 
+          {/* Selección de Tema Visual */}
           <div className="inline-input-group">
             <label className="input-label">Tema</label>
             <select className="text-input" value={config.theme} onChange={handleThemeChange}>
@@ -87,6 +96,7 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
             </select>
           </div>
 
+          {/* Selección de Tipografía */}
           <div className="inline-input-group">
             <label className="input-label">Fuente</label>
             <select className="text-input" value={config.fontFamily} onChange={e => updateConfig('fontFamily', e.target.value)}>
@@ -97,14 +107,16 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
             </select>
           </div>
 
+          {/* Tamaño de la Fuente */}
           <div className="inline-input-group">
             <label className="input-label">Tamaño de la fuente</label>
-            <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input type="number" className="number-input" value={config.fontSize} onChange={e => updateConfig('fontSize', Number(e.target.value))} />
               <span className="value-label">px</span>
             </div>
           </div>
 
+          {/* Color de Fondo para la Previsualización */}
           <div className="inline-input-group align-top">
             <label className="input-label">Color de fondo</label>
             <div>
@@ -112,10 +124,11 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
                 <span className="hex-label">{config.previewBg.toUpperCase()}</span>
                 <input type="color" className="color-input" value={config.previewBg} onChange={e => updateConfig('previewBg', e.target.value)} />
               </div>
-              <p className="simulate-hint" style={{margin: '4px 0 0 0', lineHeight: 1.3}}>Nota: Este color es de vista previa.<br/>No se visualizará en el stream.</p>
+              <p className="simulate-hint" style={{ margin: '4px 0 0 0', lineHeight: 1.3 }}>Nota: Este color es de vista previa.<br/>No se visualizará en el stream.</p>
             </div>
           </div>
 
+          {/* Color del Texto Principal */}
           <div className="inline-input-group">
             <label className="input-label">Color del texto</label>
             <div className="color-picker-wrapper">
@@ -124,9 +137,10 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
             </div>
           </div>
 
-          <div className="grid-2-col" style={{marginTop: '16px'}}>
-            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-              <h4 className="section-title" style={{fontSize: '16px', marginBottom: '8px'}}>Icons / Insignias</h4>
+          {/* Interruptores para Visibilidad de Insignias y Emotes de Terceros */}
+          <div className="grid-2-col" style={{ marginTop: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <h4 className="section-title" style={{ fontSize: '16px', marginBottom: '8px' }}>Icons / Insignias</h4>
               <label className="checkbox-label">
                 <input type="checkbox" checked={config.badges.platform} onChange={e => updateNestedConfig('badges', 'platform', e.target.checked)} />
                 <span className="custom-checkbox"></span> Mostrar plataforma del viewer
@@ -157,8 +171,8 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
               </label>
             </div>
             
-            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-              <h4 className="section-title" style={{fontSize: '16px', marginBottom: '8px'}}>Emotes extra</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <h4 className="section-title" style={{ fontSize: '16px', marginBottom: '8px' }}>Emotes extra</h4>
               <label className="checkbox-label">
                 <input type="checkbox" checked={config.emotes.bttv} onChange={e => updateNestedConfig('emotes', 'bttv', e.target.checked)} />
                 <span className="custom-checkbox"></span> Habilitar BetterTTV
@@ -175,6 +189,7 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
           </div>
         </div>
 
+        {/* Columna Derecha: Previsualización en Vivo del Chat */}
         <div className="chat-preview-col" style={{ backgroundColor: config.previewBg, display: 'flex', flexDirection: 'column' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
@@ -203,13 +218,15 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
         </div>
       </div>
 
+      {/* Secciones Inferiores: Comportamiento, Filtros y Código Personalizado */}
       <div className="chat-bottom-row">
         <div className="grid-2-col">
           
-          <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+          {/* Configuración de Comportamiento del Chat */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h3 className="section-title">Comportamiento</h3>
             
-            <div className="inline-input-group" style={{marginTop: '8px'}}>
+            <div className="inline-input-group" style={{ marginTop: '8px' }}>
               <label className="input-label">Despliegue de Mensajes</label>
               <select className="text-input" value={config.direction || 'bottom-up'} onChange={e => updateConfig('direction', e.target.value)}>
                 <option value="bottom-up">Abajo para Arriba (Por Defecto)</option>
@@ -217,22 +234,23 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
               </select>
             </div>
 
-            <div className="inline-input-group" style={{marginTop: '8px'}}>
+            <div className="inline-input-group" style={{ marginTop: '8px' }}>
               <label className="input-label">Ocultar mensaje después de</label>
-              <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input type="number" className="number-input" value={config.fadeOut} onChange={e => updateConfig('fadeOut', Number(e.target.value))} disabled={config.fadeOut === 0} min="1" />
                 <span className="value-label">seg</span>
               </div>
             </div>
-            <label className="checkbox-label" style={{marginLeft: '180px'}}>
+            <label className="checkbox-label" style={{ marginLeft: '180px' }}>
               <input type="checkbox" checked={config.fadeOut === 0} onChange={e => updateConfig('fadeOut', e.target.checked ? 0 : 7)} />
               <span className="custom-checkbox"></span> Siempre mostrar
             </label>
           </div>
 
-          <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+          {/* Filtros de Ocultación de Bots, Comandos y Usuarios (Blacklist) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h3 className="section-title">Ocultar Usuarios</h3>
-            <label className="checkbox-label" style={{marginTop: '8px'}}>
+            <label className="checkbox-label" style={{ marginTop: '8px' }}>
               <input type="checkbox" checked={config.hideBots} onChange={e => updateConfig('hideBots', e.target.checked)} />
               <span className="custom-checkbox"></span> Esconder Chat Bots comunes
             </label>
@@ -241,9 +259,9 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
               <span className="custom-checkbox"></span> Esconder comandos que inicien con "!"
             </label>
             
-            <div className="inline-input-group" style={{marginTop: '12px', justifyContent: 'flex-start'}}>
-              <label className="input-label" style={{width: 'auto', marginRight: '16px'}}>Esconder por username</label>
-              <input type="text" className="text-input" style={{width: '180px'}} placeholder="Escribir Username" value={newBlacklistWord} onChange={e => setNewBlacklistWord(e.target.value)} onKeyDown={handleAddBlacklist} />
+            <div className="inline-input-group" style={{ marginTop: '12px', justifyContent: 'flex-start' }}>
+              <label className="input-label" style={{ width: 'auto', marginRight: '16px' }}>Esconder por username</label>
+              <input type="text" className="text-input" style={{ width: '180px' }} placeholder="Escribir Username" value={newBlacklistWord} onChange={e => setNewBlacklistWord(e.target.value)} onKeyDown={handleAddBlacklist} />
             </div>
             
             <div className="pills-container" style={{ marginLeft: '175px' }}>
@@ -256,15 +274,16 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
           </div>
         </div>
 
-        <div style={{marginTop: '24px'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '24px'}}>
+        {/* Editor de Código HTML/CSS Avanzado */}
+        <div style={{ marginTop: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <h3 className="section-title">Habilitar HTML/CSS personalizado</h3>
             <label className="toggle-switch">
               <input type="checkbox" checked={config.isAdvanced} onChange={e => updateConfig('isAdvanced', e.target.checked)} />
               <span className="toggle-slider"></span>
             </label>
             {config.isAdvanced && (
-              <button className="btn-outline" style={{padding: '6px 12px', fontSize: '12px', margin: 0, width: 'auto'}} onClick={() => setConfig(prev => ({...prev, customHTML: defaultConfig.customHTML, customCSS: defaultConfig.customCSS}))}>
+              <button className="btn-outline" style={{ padding: '6px 12px', fontSize: '12px', margin: 0, width: 'auto' }} onClick={() => setConfig(prev => ({ ...prev, customHTML: defaultConfig.customHTML, customCSS: defaultConfig.customCSS }))}>
                 Restaurar original
               </button>
             )}
@@ -281,8 +300,8 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
                 className="code-textarea" spellCheck="false"
                 value={activeTab === 'html' ? config.customHTML : (activeTab === 'css' ? config.customCSS : '// JS Próximamente')} 
                 onChange={e => {
-                  if(activeTab === 'html') updateConfig('customHTML', e.target.value)
-                  if(activeTab === 'css') updateConfig('customCSS', e.target.value)
+                  if (activeTab === 'html') updateConfig('customHTML', e.target.value);
+                  if (activeTab === 'css') updateConfig('customCSS', e.target.value);
                 }}
               />
             </div>
@@ -291,5 +310,5 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
 
       </div>
     </div>
-  )
+  );
 }

@@ -1,55 +1,28 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Avatar } from './components/pngtuber/Avatar'
-import { TwitchChat } from './components/chat/TwitchChat'
-import { SettingsPanel } from './components/core/SettingsPanel'
-import { Hub } from './components/hub/Hub'
-import { EditorHeader } from './components/core/EditorHeader'
-import { useOBS } from './hooks/useOBS'
-import { usePNGTuber } from './hooks/usePNGTuber'
-import { useChatSettings } from './hooks/useChatSettings'
-import { encodeOBSConfig, decodeOBSConfig } from './utils/urlHelpers'
-import './App.css'
-
-function ToastNotification({ toast, onClose }) {
-  const [isHovered, setIsHovered] = useState(false)
-
-  useEffect(() => {
-    if (!toast) return
-    if (isHovered) return
-
-    const timer = setTimeout(() => {
-      onClose()
-    }, 5000)
-
-    return () => clearTimeout(timer)
-  }, [toast, isHovered, onClose])
-
-  if (!toast) return null
-
-  return (
-    <div 
-      className={`toast-container toast-${toast.type || 'success'}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <span>{toast.type === 'alert' ? '⚠️' : '✔️'}</span>
-      <span>{toast.message}</span>
-      <button className="toast-close-btn" onClick={onClose}>×</button>
-    </div>
-  )
-}
+import { useState, useEffect, useMemo } from 'react';
+import { Avatar } from './components/pngtuber/Avatar';
+import { TwitchChat } from './components/chat/TwitchChat';
+import { SettingsPanel } from './components/core/SettingsPanel';
+import { Hub } from './components/hub/Hub';
+import { EditorHeader } from './components/core/EditorHeader';
+import { ToastNotification } from './components/core/ToastNotification';
+import { useOBS } from './hooks/useOBS';
+import { usePNGTuber } from './hooks/usePNGTuber';
+import { useChatSettings } from './hooks/useChatSettings';
+import { useResizer } from './hooks/useResizer';
+import { encodeOBSConfig, decodeOBSConfig } from './utils/urlHelpers';
+import './App.css';
 
 function App() {
-  const urlParams = new URLSearchParams(window.location.search)
-  const encodedAvatar = urlParams.get('avatar')
-  const isAvatarOverlay = Boolean(encodedAvatar)
-  const encodedChat = urlParams.get('chat')
-  const isChatOverlay = Boolean(encodedChat)
+  const urlParams = new URLSearchParams(window.location.search);
+  const encodedAvatar = urlParams.get('avatar');
+  const isAvatarOverlay = Boolean(encodedAvatar);
+  const encodedChat = urlParams.get('chat');
+  const isChatOverlay = Boolean(encodedChat);
 
-  const [toast, setToast] = useState(null)
+  const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => {
-    setToast({ message, type, id: Date.now() })
-  }
+    setToast({ message, type, id: Date.now() });
+  };
 
   const obsConfigDecoded = useMemo(() => {
     const encoded = encodedAvatar || encodedChat;
@@ -57,7 +30,7 @@ function App() {
       return decodeOBSConfig(encoded);
     }
     return {};
-  }, [isAvatarOverlay, isChatOverlay, encodedAvatar, encodedChat])
+  }, [isAvatarOverlay, isChatOverlay, encodedAvatar, encodedChat]);
 
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -66,33 +39,8 @@ function App() {
 
   const [mobileTab, setMobileTab] = useState('settings');
 
-  // Lógica del Redimensionador (Resizer)
-  const [sidebarWidth, setSidebarWidth] = useState(360);
-  const [isResizing, setIsResizing] = useState(false);
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isResizing) return;
-      const maxWidth = window.innerWidth * 0.4; // 40% máximo de la pantalla
-      const newWidth = Math.max(320, Math.min(e.clientX, maxWidth)); // 320px mínimo
-      setSidebarWidth(newWidth);
-    };
-    const handleMouseUp = () => setIsResizing(false);
-    
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'ew-resize';
-      document.body.style.userSelect = 'none';
-    } else {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
+  // Herramienta extraída que gestiona el redimensionador lateral arrastrable
+  const { sidebarWidth, isResizing, setIsResizing } = useResizer(360);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -114,14 +62,14 @@ function App() {
     setMobileTab('settings');
   };
 
-  const [password, setPassword] = useState(obsConfigDecoded.p || localStorage.getItem('obs-pngtuber-pass') || '')
-  const [serverAddress, setServerAddress] = useState(obsConfigDecoded.a || localStorage.getItem('obs-pngtuber-address') || 'localhost:4455')
+  const [password, setPassword] = useState(obsConfigDecoded.p || localStorage.getItem('obs-pngtuber-pass') || '');
+  const [serverAddress, setServerAddress] = useState(obsConfigDecoded.a || localStorage.getItem('obs-pngtuber-address') || 'localhost:4455');
   
-  const [isTalking, setIsTalking] = useState(false)
-  const [isSimulating, setIsSimulating] = useState(false)
-  const [currentVolume, setCurrentVolume] = useState(0)
-  const [isSelectOpen, setIsSelectOpen] = useState(false)
-  const [availableMics, setAvailableMics] = useState([])
+  const [isTalking, setIsTalking] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [currentVolume, setCurrentVolume] = useState(0);
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
+  const [availableMics, setAvailableMics] = useState([]);
 
   const {
     fileError, previewBg, setPreviewBg, selectedMic, setSelectedMic, sensitivity, setSensitivity,
@@ -132,11 +80,11 @@ function App() {
     images, setImages, micRef, sensRef, handleImageUpload, handleClearImage, getCurrentImage,
     presets, setPresets, activePresetId, setActivePresetId, activePreset,
     addPreset, duplicatePreset, deletePreset, updatePresetName, updatePresetTrigger
-  } = usePNGTuber({ isAvatarOverlay, isTalking, isSimulating })
+  } = usePNGTuber({ isAvatarOverlay, isTalking, isSimulating });
 
   const { 
     twitchInput, setTwitchInput, chatConfig, setChatConfig, defaultChatConfig 
-  } = useChatSettings({ isChatOverlay })
+  } = useChatSettings({ isChatOverlay });
 
   const { isConnected, obsError, connectToOBS, handleLogout } = useOBS({
     password, setPassword, serverAddress, isAvatarOverlay, isChatOverlay, micRef, sensRef,
@@ -156,26 +104,26 @@ function App() {
   }, [password, serverAddress, isConnected]); 
   
   useEffect(() => {
-    const handleClickOutside = () => setIsSelectOpen(false)
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [])
+    const handleClickOutside = () => setIsSelectOpen(false);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (fileError) {
-      showToast(fileError, 'alert')
+      showToast(fileError, 'alert');
     }
-  }, [fileError])
+  }, [fileError]);
 
   const avatarLinkGenerated = useMemo(() => {
     const encoded = encodeOBSConfig(serverAddress, password);
     return encoded ? `${window.location.origin}${window.location.pathname}?avatar=${encoded}` : '';
-  }, [password, serverAddress])
+  }, [password, serverAddress]);
 
   const chatLinkGenerated = useMemo(() => {
     const encoded = encodeOBSConfig(serverAddress, password);
     return encoded ? `${window.location.origin}${window.location.pathname}?chat=${encoded}` : '';
-  }, [password, serverAddress])
+  }, [password, serverAddress]);
 
   const memoizedTwitchChat = useMemo(() => (
     <TwitchChat 
@@ -189,9 +137,9 @@ function App() {
         if (p && !isAvatarOverlay && !isChatOverlay) showToast(`Comando ejecutado: Avatar "${p.nombre}"`, 'success');
       }}
     />
-  ), [twitchInput, isChatOverlay, chatConfig, presets, setActivePresetId, isAvatarOverlay])
+  ), [twitchInput, isChatOverlay, chatConfig, presets, setActivePresetId, isAvatarOverlay]);
   
-  const activeTalkingState = isTalking || isSimulating
+  const activeTalkingState = isTalking || isSimulating;
 
   const effectiveTalkIntensity = useMemo(() => {
     if (!isVoiceReactive) return talkIntensity;
@@ -207,7 +155,7 @@ function App() {
       <div style={{width: '100vw', height: '100vh', margin: 0, padding: 0, overflow: 'hidden', backgroundColor: 'transparent'}}>
         {memoizedTwitchChat}
       </div>
-    )
+    );
   }
 
   if (isAvatarOverlay) {
@@ -218,7 +166,7 @@ function App() {
           {memoizedTwitchChat}
         </div>
       </div>
-    )
+    );
   }
 
   if (currentView === 'hub') {
@@ -234,7 +182,7 @@ function App() {
         </div>
         <ToastNotification toast={toast} onClose={() => setToast(null)} />
       </>
-    )
+    );
   }
 
   return (
@@ -336,7 +284,7 @@ function App() {
       </div>
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

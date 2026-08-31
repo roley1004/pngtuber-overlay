@@ -1,103 +1,38 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { compressImage } from '../utils/imageHelpers';
-
-const DB_NAME = 'pngtuber-db';
-const STORE_NAME = 'presets';
-const DB_VERSION = 2;
-
-const initDB = () => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const getAllPresetsFromDB = async () => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.getAll();
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const savePresetToDB = async (preset) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.put(preset);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const deletePresetFromDB = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const createNewPresetObject = (name = 'Nuevo Avatar', basePreset = null) => {
-  const id = `preset_${Date.now()}`;
-  if (basePreset) {
-    return {
-      ...JSON.parse(JSON.stringify(basePreset)),
-      id,
-      nombre: `${basePreset.nombre} (Copia)`
-    };
-  }
-  return {
-    id,
-    nombre: name,
-    imagenes: { idle: null, talk: null, blink: null, talkBlink: null },
-    animaciones: {
-      talkAnimation: 'bounce',
-      talkIntensity: 75,
-      idleAnimation: 'none',
-      idleIntensity: 50,
-      isVoiceReactive: true
-    },
-    disparadores: { hotkey: '', twitchCommand: '' }
-  };
-};
+import {
+  getAllPresetsFromDB,
+  savePresetToDB,
+  deletePresetFromDB,
+  createNewPresetObject
+} from '../utils/dbHelpers';
 
 export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
+  // Estados visuales y de configuración básica
   const [fileError, setFileError] = useState('');
   const [isBlinking, setIsBlinking] = useState(false);
   const [previewBg, setPreviewBg] = useState('grid');
   
+  // Estados cargados desde el almacenamiento local del navegador (LocalStorage)
   const [selectedMic, setSelectedMic] = useState(localStorage.getItem('obs-pngtuber-mic') || '');
   const [sensitivity, setSensitivity] = useState(parseFloat(localStorage.getItem('obs-pngtuber-sens')) || 25);
   const [blinkFrequency, setBlinkFrequency] = useState(parseFloat(localStorage.getItem('obs-pngtuber-blink-freq')) || 4.0);
   const [isRandomBlink, setIsRandomBlink] = useState(localStorage.getItem('obs-pngtuber-random-blink') === 'true');
 
+  // Catálogo de avatares (presets) y avatar activo seleccionado
   const [presets, setPresets] = useState([]);
   const [activePresetId, setActivePresetId] = useState('');
 
   const micRef = useRef(selectedMic);
   const sensRef = useRef(sensitivity);
 
-  // Carga inicial y migración de presets desde IndexedDB
+  // Carga inicial de avatares desde IndexedDB al arrancar la aplicación
   useEffect(() => {
     const loadPresets = async () => {
       try {
         let dbPresets = await getAllPresetsFromDB();
         
+        // Si la base de datos está vacía, migra datos antiguos o crea el avatar predeterminado
         if (!dbPresets || dbPresets.length === 0) {
           const legacyIdle = localStorage.getItem('obs-pngtuber-img-idle');
           const legacyTalk = localStorage.getItem('obs-pngtuber-img-talk');
@@ -144,16 +79,19 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     loadPresets();
   }, [isAvatarOverlay]);
 
+  // Persiste el ID del avatar seleccionado para recordarlo al reabrir la página
   useEffect(() => {
     if (activePresetId) {
       localStorage.setItem('obs-pngtuber-active-preset-id', activePresetId);
     }
   }, [activePresetId]);
 
+  // Obtiene el objeto completo del avatar que está seleccionado actualmente
   const activePreset = useMemo(() => {
     return presets.find(p => p.id === activePresetId) || presets[0] || null;
   }, [presets, activePresetId]);
 
+  // Función central para modificar cualquier propiedad del avatar activo y guardarlo en IndexedDB
   const updateActivePreset = (updater) => {
     setPresets(prevPresets => {
       const newPresets = prevPresets.map(p => {
@@ -170,6 +108,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     });
   };
 
+  // Extrae las variables del avatar activo de forma segura con valores por defecto
   const images = activePreset?.imagenes || { idle: null, talk: null, blink: null, talkBlink: null };
   const talkIntensity = activePreset?.animaciones?.talkIntensity ?? 75;
   const idleIntensity = activePreset?.animaciones?.idleIntensity ?? 50;
@@ -177,6 +116,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
   const idleAnimation = activePreset?.animaciones?.idleAnimation ?? 'none';
   const isVoiceReactive = activePreset?.animaciones?.isVoiceReactive ?? true;
 
+  // Funciones mutadoras para cambiar configuraciones individuales del avatar
   const setTalkIntensity = (val) => {
     const value = typeof val === 'function' ? val(talkIntensity) : val;
     updateActivePreset(p => ({ ...p, animaciones: { ...p.animaciones, talkIntensity: value } }));
@@ -207,11 +147,13 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     updateActivePreset(p => ({ ...p, imagenes: value }));
   };
 
+  // Guarda los cambios del micrófono y sliders en LocalStorage
   useEffect(() => { micRef.current = selectedMic; localStorage.setItem('obs-pngtuber-mic', selectedMic); }, [selectedMic]);
   useEffect(() => { sensRef.current = sensitivity; localStorage.setItem('obs-pngtuber-sens', sensitivity); }, [sensitivity]);
   useEffect(() => { localStorage.setItem('obs-pngtuber-blink-freq', blinkFrequency); }, [blinkFrequency]);
   useEffect(() => { localStorage.setItem('obs-pngtuber-random-blink', isRandomBlink); }, [isRandomBlink]);
 
+  // Temporizador responsable de activar el parpadeo aleatorio o constante
   useEffect(() => {
     let timeoutId;
     const scheduleBlink = () => {
@@ -223,6 +165,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     return () => clearTimeout(timeoutId);
   }, [blinkFrequency, isRandomBlink]);
 
+  // Comprime la imagen seleccionada y la asigna al estado correspondiente del avatar
   const handleImageUpload = async (key, event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -241,6 +184,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     }
   };
 
+  // Limpia la imagen de un estado del avatar
   const handleClearImage = async (key, event) => {
     if (event) event.stopPropagation();
     updateActivePreset(p => ({
@@ -249,6 +193,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     }));
   };
 
+  // Crea un nuevo avatar vacío
   const addPreset = async (name = 'Nuevo Avatar') => {
     const newPreset = createNewPresetObject(name);
     const updated = [...presets, newPreset];
@@ -257,6 +202,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     if (!isAvatarOverlay) await savePresetToDB(newPreset);
   };
 
+  // Duplica un avatar existente con sus mismas imágenes y ajustes
   const duplicatePreset = async (id) => {
     const target = presets.find(p => p.id === id);
     if (!target) return;
@@ -267,6 +213,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     if (!isAvatarOverlay) await savePresetToDB(cloned);
   };
 
+  // Elimina un avatar seleccionado de la memoria y base de datos
   const deletePreset = async (id) => {
     if (presets.length <= 1) return;
     const updated = presets.filter(p => p.id !== id);
@@ -277,6 +224,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     if (!isAvatarOverlay) await deletePresetFromDB(id);
   };
 
+  // Renombra un avatar en la lista
   const updatePresetName = (id, newName) => {
     setPresets(prev => {
       const updated = prev.map(p => p.id === id ? { ...p, nombre: newName } : p);
@@ -286,6 +234,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     });
   };
 
+  // Modifica el comando de Twitch o activadores del avatar
   const updatePresetTrigger = (id, field, value) => {
     setPresets(prev => {
       const updated = prev.map(p => {
@@ -300,6 +249,7 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     });
   };
 
+  // Calcula qué estado del PNGTuber se debe mostrar (reposo, hablar, parpadeo o ambos)
   const getCurrentImage = () => {
     const isActive = isTalking || isSimulating;
     if (isActive && isBlinking) return images.talkBlink || '/talk_blink.png';

@@ -1,3 +1,6 @@
+import React from 'react';
+
+// Insignias predeterminadas por si la API de Twitch falla al cargarlas
 export const DEFAULT_BADGES = {
   broadcaster: { "1": "https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-422d-b71b-f309dcb85cc1/3" },
   moderator: { "1": "https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/3" },
@@ -9,6 +12,7 @@ export const DEFAULT_BADGES = {
   bits: { "1": "https://static-cdn.jtvnw.net/badges/v1/73b5c3fb-24f9-4a82-a852-2f475b59411c/3", "1000": "https://static-cdn.jtvnw.net/badges/v1/0d85a29e-79ad-4c63-a285-3acd2c66f2ba/3" }
 };
 
+// Calcula si el texto debe ser blanco o negro dependiendo de qué tan claro sea el fondo
 export const getContrastColor = (hexColor) => {
   if (!hexColor || typeof hexColor !== 'string') return '#ffffff';
   const cleanHex = hexColor.replace('#', '');
@@ -20,6 +24,7 @@ export const getContrastColor = (hexColor) => {
   return brightness >= 128 ? '#111111' : '#ffffff';
 };
 
+// Lista de mensajes falsos para probar la apariencia del chat sin conectarse a Twitch
 export const staticDummyMessages = [
   { id: '1', username: 'Streamer', roles: { broadcaster: true, platform: true }, rawBadges: { broadcaster: '1' }, emotesTags: null, color: '#FF5733', message: '¡Bienvenidos al stream! KEKW catJAM' },
   { id: '2', username: 'ModVigilante', roles: { mod: true, platform: true }, rawBadges: { moderator: '1' }, emotesTags: null, color: '#33FF57', message: 'Recuerden leer las reglas. !reglas LUL' },
@@ -30,3 +35,221 @@ export const staticDummyMessages = [
   { id: '7', username: 'Donador', roles: { bits: true, platform: true }, rawBadges: { bits: '1000' }, emotesTags: null, color: '#FFB100', message: '¡Toma unos cuantos bits!' },
   { id: '8', username: 'ViewerComun', roles: { platform: true }, rawBadges: {}, emotesTags: null, color: '#FFFFFF', message: 'Hola a todos desde Twitch 👋' }
 ];
+
+// --- FUNCIONES EXTRAÍDAS DE TwitchChat.jsx ---
+
+// Se conecta a las APIs de terceros (7TV, BTTV, FFZ) para descargar los emotes del canal actual
+export const loadThirdPartyEmotes = async (targetChannel, config) => {
+  const loadedEmotes = {};
+  if (!targetChannel) return loadedEmotes;
+  const cleanChannel = targetChannel.replace('#', '').trim().toLowerCase();
+
+  try {
+    if (config.emotes?.bttv !== false) {
+      const bttvGlobal = await fetch('https://api.betterttv.net/3/cached/emotes/global').then(r => r.json()).catch(() => []);
+      if (Array.isArray(bttvGlobal)) {
+        bttvGlobal.forEach(e => { loadedEmotes[e.code] = `https://cdn.betterttv.net/emote/${e.id}/1x`; });
+      }
+    }
+
+    if (config.emotes?.ffz !== false) {
+      const ffzGlobal = await fetch('https://api.frankerfacez.com/v1/set/global').then(r => r.json()).catch(() => null);
+      if (ffzGlobal?.sets) {
+        Object.values(ffzGlobal.sets).forEach(set => {
+          set.emoticons?.forEach(e => {
+            const url = e.urls['1'] || Object.values(e.urls)[0];
+            loadedEmotes[e.name] = url.startsWith('//') ? `https:${url}` : url;
+          });
+        });
+      }
+    }
+
+    if (config.emotes?.seventv !== false) {
+      const svnGlobal = await fetch('https://7tv.io/v3/emote-sets/global').then(r => r.json()).catch(() => null);
+      if (svnGlobal?.emotes) {
+        svnGlobal.emotes.forEach(e => {
+          const hostUrl = e.data?.host?.url;
+          if (hostUrl) loadedEmotes[e.name] = `https:${hostUrl}/1x.webp`;
+        });
+      }
+    }
+
+    const idRes = await fetch(`https://decapi.me/twitch/id/${cleanChannel}`).then(r => r.text()).catch(() => '');
+    const twitchId = idRes.trim();
+
+    if (twitchId && !isNaN(twitchId)) {
+      if (config.emotes?.bttv !== false) {
+        const bttvChan = await fetch(`https://api.betterttv.net/3/cached/users/twitch/${twitchId}`).then(r => r.json()).catch(() => null);
+        if (bttvChan) {
+          [...(bttvChan.channelEmotes || []), ...(bttvChan.sharedEmotes || [])].forEach(e => {
+            loadedEmotes[e.code] = `https://cdn.betterttv.net/emote/${e.id}/1x`;
+          });
+        }
+      }
+
+      if (config.emotes?.seventv !== false) {
+        const svnChan = await fetch(`https://7tv.io/v3/users/twitch/${twitchId}`).then(r => r.json()).catch(() => null);
+        if (svnChan?.emote_set?.emotes) {
+          svnChan.emote_set.emotes.forEach(e => {
+            const hostUrl = e.data?.host?.url;
+            if (hostUrl) loadedEmotes[e.name] = `https:${hostUrl}/1x.webp`;
+          });
+        }
+      }
+    }
+
+    if (config.emotes?.ffz !== false) {
+      const ffzChan = await fetch(`https://api.frankerfacez.com/v1/room/${cleanChannel}`).then(r => r.json()).catch(() => null);
+      if (ffzChan?.sets) {
+        Object.values(ffzChan.sets).forEach(set => {
+          set.emoticons?.forEach(e => {
+            const url = e.urls['1'] || Object.values(e.urls)[0];
+            loadedEmotes[e.name] = url.startsWith('//') ? `https:${url}` : url;
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Error al cargar emotes extra:", err);
+  }
+  return loadedEmotes;
+};
+
+// Encuentra la imagen correcta de la insignia comparando los meses de sub o cantidad de bits
+export const getBadgeSrc = (msg, setId, twitchBadges) => {
+  const targetVersion = msg.rawBadges?.[setId];
+  if (!targetVersion) return null;
+
+  const setBadges = twitchBadges[setId] || DEFAULT_BADGES[setId];
+  if (!setBadges) return null;
+
+  if (setBadges[targetVersion]) {
+    return setBadges[targetVersion];
+  }
+
+  const numericTarget = parseInt(targetVersion, 10);
+  if (!isNaN(numericTarget)) {
+    const availableVersions = Object.keys(setBadges)
+      .map(v => parseInt(v, 10))
+      .filter(v => !isNaN(v) && v <= numericTarget)
+      .sort((a, b) => b - a);
+
+    if (availableVersions.length > 0) {
+      return setBadges[availableVersions[0]];
+    }
+  }
+
+  const firstAvailableKey = Object.keys(setBadges)[0];
+  return setBadges[firstAvailableKey] || null;
+};
+
+// Convierte el texto escrito en piezas separadas mezclando texto y etiquetas usando Javascript puro
+export const renderParsedMessage = (msgObj, emotesMap) => {
+  const { message, emotesTags } = msgObj;
+  if (!message) return null;
+
+  const twitchEmotes = [];
+  if (emotesTags) {
+    Object.keys(emotesTags).forEach(id => {
+      emotesTags[id].forEach(range => {
+        const [start, end] = range.split('-').map(Number);
+        twitchEmotes.push({
+          start, end, id,
+          code: message.slice(start, end + 1),
+          url: `https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/2.0`
+        });
+      });
+    });
+  }
+
+  twitchEmotes.sort((a, b) => a.start - b.start);
+
+  const parts = [];
+  let lastIndex = 0;
+
+  twitchEmotes.forEach(emote => {
+    if (emote.start > lastIndex) {
+      parts.push({ type: 'text', content: message.slice(lastIndex, emote.start) });
+    }
+    parts.push({ type: 'twitch', url: emote.url, code: emote.code });
+    lastIndex = emote.end + 1;
+  });
+
+  if (lastIndex < message.length) {
+    parts.push({ type: 'text', content: message.slice(lastIndex) });
+  }
+  if (parts.length === 0) {
+    parts.push({ type: 'text', content: message });
+  }
+
+  return parts.map((part, pIdx) => {
+    if (part.type === 'twitch') {
+      return React.createElement('img', {
+        key: `tw-${pIdx}`,
+        src: part.url,
+        alt: part.code,
+        title: part.code,
+        className: 'chat-emote-img'
+      });
+    }
+
+    const words = part.content.split(' ');
+    return words.map((word, wIdx) => {
+      const emoteUrl = emotesMap[word];
+      const isLast = wIdx === words.length - 1;
+      
+      if (emoteUrl) {
+        return React.createElement(React.Fragment, { key: `3rd-${pIdx}-${wIdx}` },
+          React.createElement('img', {
+            src: emoteUrl,
+            alt: word,
+            title: word,
+            className: 'chat-emote-img'
+          }),
+          !isLast ? ' ' : null
+        );
+      }
+      return word + (!isLast ? ' ' : '');
+    });
+  });
+};
+
+// Hace lo mismo que la función anterior, pero devuelve HTML puro en texto para la función de Código Personalizado (Custom CSS/HTML)
+export const getCustomHtmlParsedText = (msgObj, emotesMap) => {
+  const { message, emotesTags } = msgObj;
+  if (!message) return '';
+
+  const twitchEmotes = [];
+  if (emotesTags) {
+    Object.keys(emotesTags).forEach(id => {
+      emotesTags[id].forEach(range => {
+        const [start, end] = range.split('-').map(Number);
+        twitchEmotes.push({ start, end, id, code: message.slice(start, end + 1), url: `https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/2.0` });
+      });
+    });
+  }
+  twitchEmotes.sort((a, b) => a.start - b.start);
+
+  let resultHtml = '';
+  let lastIndex = 0;
+
+  const processText = (text) => {
+    return text.split(' ').map(w => emotesMap[w] 
+      ? `<img src="${emotesMap[w]}" alt="${w}" title="${w}" class="chat-emote-img" />` 
+      : w).join(' ');
+  };
+
+  twitchEmotes.forEach(emote => {
+    if (emote.start > lastIndex) {
+      resultHtml += processText(message.slice(lastIndex, emote.start));
+    }
+    resultHtml += `<img src="${emote.url}" alt="${emote.code}" title="${emote.code}" class="chat-emote-img" />`;
+    lastIndex = emote.end + 1;
+  });
+
+  if (lastIndex < message.length) {
+    resultHtml += processText(message.slice(lastIndex));
+  }
+
+  return resultHtml;
+};
