@@ -5,6 +5,8 @@ import { SettingsPanel } from './components/core/SettingsPanel';
 import { Hub } from './components/hub/Hub';
 import { EditorHeader } from './components/core/EditorHeader';
 import { ToastNotification } from './components/core/ToastNotification';
+import { OBSDock } from './components/dock/OBSDock';
+import { DockSimulator } from './components/dock/DockSimulator';
 import { useOBS } from './hooks/useOBS';
 import { usePNGTuber } from './hooks/usePNGTuber';
 import { useChatSettings } from './hooks/useChatSettings';
@@ -18,6 +20,7 @@ function App() {
   const isAvatarOverlay = Boolean(encodedAvatar);
   const encodedChat = urlParams.get('chat');
   const isChatOverlay = Boolean(encodedChat);
+  const isDockMode = urlParams.get('dock') === 'true';
 
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => {
@@ -38,8 +41,6 @@ function App() {
   });
 
   const [mobileTab, setMobileTab] = useState('settings');
-
-  // Herramienta extraída que gestiona el redimensionador lateral arrastrable
   const { sidebarWidth, isResizing, setIsResizing } = useResizer(360);
 
   useEffect(() => {
@@ -86,8 +87,8 @@ function App() {
     twitchInput, setTwitchInput, chatConfig, setChatConfig, defaultChatConfig 
   } = useChatSettings({ isChatOverlay });
 
-  const { isConnected, obsError, connectToOBS, handleLogout } = useOBS({
-    password, setPassword, serverAddress, isAvatarOverlay, isChatOverlay, micRef, sensRef,
+  const { isConnected, obsError, connectToOBS, handleLogout, updatePresetGlobal } = useOBS({
+    password, setPassword, serverAddress, isAvatarOverlay, isChatOverlay, isDockMode, micRef, sensRef,
     setSelectedMic, setSensitivity, setBlinkFrequency, setIsRandomBlink, 
     setBounceIntensity: setTalkIntensity, 
     setImages,
@@ -110,9 +111,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (fileError) {
-      showToast(fileError, 'alert');
-    }
+    if (fileError) showToast(fileError, 'alert');
   }, [fileError]);
 
   const avatarLinkGenerated = useMemo(() => {
@@ -125,6 +124,10 @@ function App() {
     return encoded ? `${window.location.origin}${window.location.pathname}?chat=${encoded}` : '';
   }, [password, serverAddress]);
 
+  const staticDockUrl = useMemo(() => {
+    return `${window.location.origin}${window.location.pathname}?dock=true`;
+  }, []);
+
   const memoizedTwitchChat = useMemo(() => (
     <TwitchChat 
       targetChannel={twitchInput} 
@@ -134,10 +137,10 @@ function App() {
       onSelectPreset={(id) => {
         const p = presets.find(item => item.id === id);
         setActivePresetId(id);
-        if (p && !isAvatarOverlay && !isChatOverlay) showToast(`Comando ejecutado: Avatar "${p.nombre}"`, 'success');
+        if (p && !isAvatarOverlay && !isChatOverlay && !isDockMode) showToast(`Comando ejecutado: Avatar "${p.nombre}"`, 'success');
       }}
     />
-  ), [twitchInput, isChatOverlay, chatConfig, presets, setActivePresetId, isAvatarOverlay]);
+  ), [twitchInput, isChatOverlay, chatConfig, presets, setActivePresetId, isAvatarOverlay, isDockMode]);
   
   const activeTalkingState = isTalking || isSimulating;
 
@@ -150,6 +153,19 @@ function App() {
     return Math.round(talkIntensity * Math.min(Math.max(normalizedVolume, 0), 1));
   }, [isVoiceReactive, isSimulating, currentVolume, sensitivity, talkIntensity]);
 
+
+  // VISTA 1: Panel Dock directo dentro de OBS
+  if (isDockMode) {
+    return (
+      <OBSDock 
+        presets={presets} 
+        activePresetId={activePresetId} 
+        onSelectPreset={updatePresetGlobal} 
+      />
+    );
+  }
+
+  // VISTA 2: Overlay de Chat
   if (isChatOverlay) {
     return (
       <div style={{width: '100vw', height: '100vh', margin: 0, padding: 0, overflow: 'hidden', backgroundColor: 'transparent'}}>
@@ -158,6 +174,7 @@ function App() {
     );
   }
 
+  // VISTA 3: Overlay del Avatar
   if (isAvatarOverlay) {
     return (
       <div className="overlay-mode preview-container" style={{width: '100vw', height: '100vh', margin: 0, padding: 0, backgroundColor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
@@ -169,13 +186,14 @@ function App() {
     );
   }
 
-  if (currentView === 'hub') {
+  // VISTA 4: Pantalla Completa del Simulador del Dock
+  if (currentView === 'dock-simulator') {
     return (
       <>
-        <Hub 
-          setCurrentView={navigateTo} isConnected={isConnected} serverAddress={serverAddress} 
-          setServerAddress={setServerAddress} password={password} setPassword={setPassword} 
-          connectToOBS={connectToOBS} obsError={obsError} handleLogout={handleLogout}
+        <DockSimulator 
+          setCurrentView={navigateTo} 
+          presets={presets} 
+          dockUrl={staticDockUrl} 
         />
         <div style={{ display: 'none' }}>
           {memoizedTwitchChat}
@@ -185,6 +203,24 @@ function App() {
     );
   }
 
+  // VISTA 5: Pantalla de Inicio (Hub)
+  if (currentView === 'hub') {
+    return (
+      <>
+        <Hub 
+          setCurrentView={navigateTo} isConnected={isConnected} serverAddress={serverAddress} 
+          setServerAddress={setServerAddress} password={password} setPassword={setPassword} 
+          connectToOBS={connectToOBS} obsError={obsError} handleLogout={handleLogout} presets={presets}
+        />
+        <div style={{ display: 'none' }}>
+          {memoizedTwitchChat}
+        </div>
+        <ToastNotification toast={toast} onClose={() => setToast(null)} />
+      </>
+    );
+  }
+
+  // VISTA 6: Editor Principal Web (Avatar y Chat)
   return (
     <div className="app-layout">
       {currentView !== 'chat' && (
@@ -198,6 +234,7 @@ function App() {
         chatLinkGenerated={chatLinkGenerated} twitchInput={twitchInput} isConnected={isConnected} 
         serverAddress={serverAddress} setServerAddress={setServerAddress} password={password} 
         setPassword={setPassword} connectToOBS={connectToOBS} handleLogout={handleLogout} obsError={obsError}
+        presets={presets}
       />
 
       <div className="editor-body">

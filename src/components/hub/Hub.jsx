@@ -8,11 +8,16 @@ export const Hub = ({
   password, setPassword,
   serverAddress, setServerAddress,
   obsError,
-  handleLogout
+  handleLogout,
+  presets = [] // Recibe los presets para validar si el Dock está listo
 }) => {
   const [isExpanded, setIsExpanded] = useState(!isConnected);
   
   const isConnecting = obsError === "Conectando...";
+  
+  // Lógica de estado para el Panel de OBS
+  const hasAvatars = presets && presets.length > 0;
+  const isDockReady = hasAvatars;
 
   useEffect(() => {
     if (isConnected) setIsExpanded(false);
@@ -62,6 +67,7 @@ export const Hub = ({
           <div className="hero-text">
             <h1>Selecciona una herramienta</h1>
             <p>Sin consumo de recursos en tu PC.</p>
+            <p>(Esta página continuará mejorando con el tiempo)</p>
           </div>
           
           <div className="obs-widget">
@@ -113,6 +119,7 @@ export const Hub = ({
         </section>
         
         <section className="hub-grid-bento">
+          
           <div className="bento-card" onClick={() => setCurrentView('pngtuber')}>
             <div className="card-icon icon-yellow">
               <span className="material-symbols-outlined" style={{fontVariationSettings: "'FILL' 1"}}>mic</span>
@@ -130,6 +137,27 @@ export const Hub = ({
             <p>Personaliza el estilo visual, las fuentes y las alertas del chat.</p>
             <button className="btn-squishy btn-outline">Personalizar Chat</button>
           </div>
+
+          {/* Nueva Tarjeta para el Panel / Dock de OBS */}
+          <div className={`bento-card ${!isDockReady ? 'disabled-card' : ''}`} onClick={() => isDockReady && setCurrentView('dock-simulator')}>
+            <div className="card-header-flex">
+              <div className="card-icon icon-blue">
+                <span className="material-symbols-outlined" style={{fontVariationSettings: "'FILL' 1"}}>widgets</span>
+              </div>
+              {!isDockReady ? (
+                <span className="badge-warning">Falta Configurar</span>
+              ) : (
+                <span className="badge-success">LISTO</span>
+              )}
+            </div>
+            <h2>Panel para OBS</h2>
+            <p>
+              {isDockReady 
+                ? "Cambia tu avatar con botones directo en OBS sin abrir el navegador." 
+                : "Crea al menos un modelo de Avatar para habilitar esta herramienta."}
+            </p>
+            {isDockReady && <button className="btn-squishy btn-outline">Abrir Simulador</button>}
+          </div>
           
           <div className="bento-card disabled">
             <div className="card-header-flex">
@@ -141,6 +169,7 @@ export const Hub = ({
             <h2>Alertas</h2>
             <p>Pop-ups para nuevos seguidores y suscripciones.</p>
           </div>
+          
         </section>
       </main>
     </div>

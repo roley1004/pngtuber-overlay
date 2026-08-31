@@ -1,0 +1,170 @@
+/* Fondos absolutos del navegador (Para evitar bordes blancos en OBS) */
+body.dock-dark-theme { background-color: #181e19; }
+body.dock-light-theme { background-color: #FAFBF8; }
+
+/* Variables base para el Dock (Modo Claro - Yoshi Pastel) */
+.obs-dock-container {
+  --bg-color: #FAFBF8;
+  --text-color: #414940;
+  --border-color: #e1e3e1;
+  --card-bg: #ffffff;
+  --card-hover: #f2f4f2;
+  
+  --active-border: #98d8a0;
+  --active-text: #235f33;
+  --active-bg: #f0fdf4;
+  --icon-color: #71796f;
+  
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: 'Quicksand', sans-serif;
+  overflow: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Forzar tamaño completo solo cuando se abre dentro de OBS */
+.obs-dock-container.standalone {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Modo Oscuro */
+.obs-dock-container.dark-mode {
+  --bg-color: #181e19;
+  --text-color: #e0e0e0;
+  --border-color: #2c362d;
+  --card-bg: #222a23;
+  --card-hover: #2d382f;
+  
+  --active-border: #A8E8B7;
+  --active-text: #A8E8B7;
+  --active-bg: rgba(168, 232, 183, 0.08);
+  --icon-color: #8c968a;
+}
+
+/* Cabecera */
+.dock-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.theme-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--icon-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+  background-color: var(--card-hover);
+  color: var(--text-color);
+}
+
+/* Contenido y Cuadrícula */
+.dock-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Scrollbar sutil */
+.dock-content::-webkit-scrollbar {
+  width: 6px;
+}
+.dock-content::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.avatar-grid {
+  display: grid;
+  /* Reducido de 85px a 70px para forzar dos columnas incluso en paneles angostos */
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 10px;
+}
+
+/* Tarjetas de Avatar (Más compactas) */
+.preset-card {
+  background-color: var(--card-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.preset-card:hover {
+  background-color: var(--card-hover);
+  transform: translateY(-2px);
+}
+
+/* Círculo del Ícono (Reducido) */
+.preset-thumbnail {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background-color: var(--card-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-color);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.icon-placeholder {
+  font-size: 20px;
+}
+
+.preset-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-color);
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; 
+}
+
+/* Estado Activo (Al Aire) */
+.preset-card.active-preset {
+  background-color: var(--active-bg);
+  border-color: var(--active-border);
+}
+
+.preset-card.active-preset .preset-thumbnail {
+  border: 2px solid var(--active-border);
+  color: var(--active-text);
+  background-color: transparent;
+}
+
+.preset-card.active-preset .preset-name {
+  color: var(--active-text);
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 30px;
+  color: var(--icon-color);
+  font-size: 13px;
+}

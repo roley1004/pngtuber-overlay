@@ -114,12 +114,106 @@ body {
 .editor-title { font-size: 22px; font-weight: 700; color: var(--text-main); margin: 0; }
 .header-right { display: flex; align-items: center; gap: 16px; }
 
-/* GENERADOR URL */
+/* BOTÓN DE ESTADO DEL PANEL OBS */
+.dock-status-wrapper { display: flex; align-items: center; }
+.btn-dock-status { 
+  display: flex; 
+  align-items: center; 
+  gap: 6px; 
+  font-family: inherit; 
+  font-weight: 700; 
+  font-size: 13px; 
+  padding: 8px 16px; 
+  border-radius: var(--radius-pill); 
+  border: 2px solid transparent; 
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); 
+}
+.btn-dock-status .icon { font-size: 18px; }
+
+.btn-dock-status.ready { 
+  background: #f0fdf4; 
+  border-color: var(--primary); 
+  color: var(--text-main); 
+  cursor: pointer; 
+}
+.btn-dock-status.ready:hover { 
+  background: var(--primary); 
+  transform: scale(1.05) translateY(-2px); 
+  box-shadow: var(--shadow-rest); 
+}
+
+.btn-dock-status.pending { 
+  background: #f2f4f2; 
+  border-color: #e1e3e1; 
+  color: #8c968a; 
+  cursor: not-allowed; 
+}
+
+/* GENERADOR URL - ANIMACIÓN DE PÍLDORA (NUEVO) */
 .url-copy-wrapper { position: relative; display: flex; align-items: center; }
-.btn-link-copy { background: #f2f4f2; border: 2px solid #e1e3e1; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-main); transition: all 0.2s; }
-.btn-link-copy:hover { border-color: var(--text-main); background: #e8f5e9; transform: scale(1.05); }
-.tooltip-copied { position: absolute; right: 110%; background: var(--text-main); color: white; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; white-space: nowrap; animation: popIn 0.2s ease-out; }
-@keyframes popIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+
+.btn-link-copy {
+  background: #f2f4f2;
+  border: 2px solid #e1e3e1;
+  border-radius: 9999px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: background-color 0.2s, border-color 0.2s;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Texto de la píldora oculto y colapsado por defecto */
+.btn-link-copy .copy-text {
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 13px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease, margin 0.3s ease;
+}
+
+/* Ícono de enlace anclado a la derecha */
+.btn-link-copy .icon-circle {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Expansión Hover (Solo en dispositivos con ratón) */
+@media (hover: hover) {
+  .btn-link-copy:hover {
+    border-color: var(--text-main);
+    background: #e8f5e9;
+  }
+  .btn-link-copy:hover .copy-text {
+    max-width: 250px;
+    opacity: 1;
+    margin-left: 16px;
+    margin-right: 8px;
+  }
+}
+
+/* Expansión Forzada tras hacer Clic */
+.btn-link-copy.copied {
+  border-color: var(--primary);
+  background: #f0fdf4;
+  color: var(--text-main);
+}
+.btn-link-copy.copied .copy-text {
+  max-width: 250px;
+  opacity: 1;
+  margin-left: 16px;
+  margin-right: 8px;
+}
 
 /* OBS COMPACTO */
 .compact-obs-widget { position: relative; background: var(--surface); border: 2px solid #e1e3e1; border-radius: var(--radius-input); }
@@ -155,7 +249,6 @@ body {
 .dot-listening { color: var(--primary); }
 .dot-idle { color: #aaa; }
 
-/* ETIQUETA DE TEXTO CON ANCHO MÍNIMO PARA EVITAR DESPLAZAMIENTOS */
 .status-text-label {
   min-width: 95px;
   display: inline-block;
@@ -233,4 +326,12 @@ body {
   
   .editor-header { padding: 12px 16px; }
   .editor-title { font-size: 18px; }
+
+  /* Bloqueo de expansión de la píldora URL en celulares para evitar desbordes */
+  .btn-link-copy:hover .copy-text,
+  .btn-link-copy.copied .copy-text {
+    max-width: 0;
+    margin: 0;
+    opacity: 0;
+  }
 }

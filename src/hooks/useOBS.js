@@ -3,7 +3,7 @@ import OBSWebSocket from 'obs-websocket-js';
 import { calculateVolumePercentage, buildPngTuberPayload } from '../utils/obsHelpers';
 
 export function useOBS({
-  password, setPassword, serverAddress, isAvatarOverlay, isChatOverlay,
+  password, setPassword, serverAddress, isAvatarOverlay, isChatOverlay, isDockMode,
   micRef, sensRef,
   setSelectedMic, setSensitivity, setBlinkFrequency, setIsRandomBlink, setBounceIntensity, setImages,
   setAvailableMics, setCurrentVolume, setIsTalking,
@@ -21,7 +21,7 @@ export function useOBS({
   const isConnecting = useRef(false);
   const talkingTimeoutRef = useRef(null);
 
-  // Función reutilizable para aplicar datos de sincronización recibidos del panel o del overlay
+  // Función reutilizable para aplicar datos de sincronización
   const applySyncData = useCallback((data) => {
     if (!data) return;
     if (data.presets && setPresets) setPresets(data.presets);
@@ -59,7 +59,6 @@ export function useOBS({
   const activePresetIdRef = useRef(activePresetId);
   useEffect(() => { activePresetIdRef.current = activePresetId; }, [activePresetId]);
 
-  // Construcción limpia del paquete de datos usando la función auxiliar de obsHelpers.js
   const payloadRef = useRef(buildPngTuberPayload({
     selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
     talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
@@ -78,32 +77,73 @@ export function useOBS({
     activePresetId, presetsStr
   ]);
 
-  // Limpieza del temporizador de habla al desmontar el hook
   useEffect(() => {
     return () => {
       if (talkingTimeoutRef.current) clearTimeout(talkingTimeoutRef.current);
     };
   }, []);
 
-  // 1. Escuchador BroadcastChannel: Sincronización instantánea entre pestañas locales del navegador
+  // Función exclusiva para que el Dock cambie de avatar sin destruir configuraciones previas de OBS
+  const updatePresetGlobal = async (newPresetId) => {
+    if (setActivePresetId) setActivePresetId(newPresetId);
+
+    // 1. Envío ultrarrápido por memoria local (BroadcastChannel)
+    if (typeof window !== 'undefined' && window.BroadcastChannel) {
+      try {
+        const bc = new BroadcastChannel('pngtuber_overlay_sync');
+        bc.postMessage({ action: 'CHANGE_PRESET_QUICK', data: { activePresetId: newPresetId } });
+        bc.close();
+      } catch (e) {}
+    }
+
+    // 2. Transmisión a todos los overlays conectados por OBS WebSocket y guardado persistente
+    if (isConnected && obs.current) {
+      try {
+        await obs.current.call('BroadcastCustomEvent', {
+          eventData: { action: 'QUICK_PRESET_CHANGE', data: { activePresetId: newPresetId } }
+        });
+
+        // Obtener la data existente completa para actualizar SÓLO el preset activo (Evita borrar micrófonos/imágenes)
+        const data = await obs.current.call('GetPersistentData', {
+          realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
+          slotName: 'StreamTools_PNGTuber'
+        });
+
+        if (data?.slotValue) {
+          const updatedPayload = { ...data.slotValue, activePresetId: newPresetId };
+          await obs.current.call('SetPersistentData', {
+            realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
+            slotName: 'StreamTools_PNGTuber',
+            slotValue: updatedPayload
+          });
+        }
+      } catch (err) {
+        console.error("Error al actualizar preset global:", err);
+      }
+    }
+  };
+
+  // 1. Escuchador BroadcastChannel
   useEffect(() => {
     if (typeof window === 'undefined' || !window.BroadcastChannel) return;
     const bc = new BroadcastChannel('pngtuber_overlay_sync');
 
-    if (isAvatarOverlay || isChatOverlay) {
+    if (isAvatarOverlay || isChatOverlay || isDockMode) {
       bc.onmessage = (event) => {
         if (event.data?.action === 'SYNC_AVATAR_FULL' && event.data.data) {
           applySyncData(event.data.data);
+        } else if (event.data?.action === 'CHANGE_PRESET_QUICK' && event.data.data?.activePresetId) {
+          if (setActivePresetId) setActivePresetId(event.data.data.activePresetId);
         }
       };
     }
 
     return () => bc.close();
-  }, [isAvatarOverlay, isChatOverlay, applySyncData]);
+  }, [isAvatarOverlay, isChatOverlay, isDockMode, applySyncData, setActivePresetId]);
 
-  // 2. Heartbeat Constante: Transmisión periódica cada 3 segundos hacia OBS WebSocket
+  // 2. Heartbeat Constante (Solo panel principal de edición)
   useEffect(() => {
-    if (isConnected && !isAvatarOverlay && !isChatOverlay && obs.current) {
+    if (isConnected && !isAvatarOverlay && !isChatOverlay && !isDockMode && obs.current) {
       const syncData = () => {
         obs.current.call('BroadcastCustomEvent', {
           eventData: { 
@@ -121,18 +161,17 @@ export function useOBS({
       const interval = setInterval(syncData, 3000);
       return () => clearInterval(interval);
     }
-  }, [isConnected, isAvatarOverlay, isChatOverlay]);
+  }, [isConnected, isAvatarOverlay, isChatOverlay, isDockMode]);
 
-  // 3. Emisión instantánea: Dispara los cambios a BroadcastChannel y OBS WebSocket inmediatamente al interactuar con la UI
+  // 3. Emisión instantánea (Solo panel principal de edición)
   useEffect(() => {
-    if (!isAvatarOverlay && !isChatOverlay) {
+    if (!isAvatarOverlay && !isChatOverlay && !isDockMode) {
       const currentPayload = buildPngTuberPayload({
         selectedMic, sensitivity, blinkFrequency, isRandomBlink, bounceIntensity, twitchInput, chatConfig,
         talkAnimation, idleAnimation, talkIntensity, idleIntensity, isVoiceReactive,
         activePresetId, presets, images
       });
 
-      // Transmisión local entre pestañas
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         try {
           const bc = new BroadcastChannel('pngtuber_overlay_sync');
@@ -141,7 +180,6 @@ export function useOBS({
         } catch (e) {}
       }
 
-      // Transmisión y persistencia en OBS Studio
       if (isConnected && obs.current) {
         obs.current.call('BroadcastCustomEvent', {
           eventData: { action: 'SYNC_IMAGES', data: { images, activePresetId, presets } }
@@ -151,26 +189,21 @@ export function useOBS({
           eventData: { action: 'SYNC_PNGTUBER', data: currentPayload }
         }).catch(() => {});
 
-        obs.current.call('SetPersistentData', {
+        const setPersistent = () => obs.current.call('SetPersistentData', {
           realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
           slotName: 'StreamTools_PNGTuber',
           slotValue: currentPayload
-        }).catch(() => {
-          obs.current.call('SetPersistentData', {
-            realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
-            slotName: 'StreamTools_PNGTuber',
-            slotValue: currentPayload
-          }).catch(() => {});
         });
+
+        setPersistent().catch(() => setPersistent().catch(() => {}));
       }
     }
   }, [
     imagesStr, activePresetId, presetsStr, talkAnimation, idleAnimation,
     talkIntensity, idleIntensity, isVoiceReactive, selectedMic, sensitivity,
-    blinkFrequency, isRandomBlink, bounceIntensity, isConnected, isAvatarOverlay, isChatOverlay
+    blinkFrequency, isRandomBlink, bounceIntensity, isConnected, isAvatarOverlay, isChatOverlay, isDockMode
   ]);
 
-  // Cierra la conexión de OBS y limpia las credenciales en LocalStorage
   const handleLogout = () => {
     try { obs.current.disconnect(); } catch (e) {}
     setIsConnected(false);
@@ -179,7 +212,6 @@ export function useOBS({
     localStorage.removeItem('obs-pngtuber-pass');
   };
 
-  // Conexión principal con OBS WebSocket v5
   const connectToOBS = async () => {
     if (!password || !serverAddress || isConnecting.current || isConnected) return;
     
@@ -190,15 +222,16 @@ export function useOBS({
       obs.current.removeAllListeners();
       await obs.current.connect(`ws://${serverAddress}`, password, { eventSubscriptions: 4194303 });
       
-      if (!isAvatarOverlay && !isChatOverlay) {
+      // Guardar credenciales sólo si estamos en el panel de control principal
+      if (!isAvatarOverlay && !isChatOverlay && !isDockMode) {
         localStorage.setItem('obs-pngtuber-pass', password);
         localStorage.setItem('obs-pngtuber-address', serverAddress);
       }
       setIsConnected(true);
       setObsError('');
 
-      // Carga de configuración persistente desde OBS Studio al iniciar el overlay
-      if (isAvatarOverlay || isChatOverlay) {
+      // Carga de configuración persistente desde OBS Studio para Overlays y Dock
+      if (isAvatarOverlay || isChatOverlay || isDockMode) {
         try {
           const data = await obs.current.call('GetPersistentData', {
             realm: 'OBS_WEBSOCKET_DATA_REALM_PROFILE',
@@ -214,15 +247,14 @@ export function useOBS({
         }).catch(() => {});
       }
 
-      // Escucha de eventos personalizados provenientes de OBS
       obs.current.on('CustomEvent', (event) => {
         if (!event) return;
         const evtData = event.eventData || event;
         const action = evtData.action;
         const data = evtData.data;
 
-        // Responder a peticiones del overlay desde el panel principal
-        if (!isAvatarOverlay && !isChatOverlay) {
+        // Panel Principal responde con la data completa a peticiones
+        if (!isAvatarOverlay && !isChatOverlay && !isDockMode) {
           if (action === 'REQUEST_SYNC') {
             obs.current.call('BroadcastCustomEvent', {
               eventData: { 
@@ -248,8 +280,8 @@ export function useOBS({
           }
         }
 
-        // Aplicar datos recibidos en el overlay
-        if (isAvatarOverlay || isChatOverlay) {
+        // Receptores (Overlays y Dock) aplican la data entrante
+        if (isAvatarOverlay || isChatOverlay || isDockMode) {
           if (action === 'SYNC_PNGTUBER' && data) {
             applySyncData(data);
           } 
@@ -264,11 +296,15 @@ export function useOBS({
               });
             }
           }
+          // Evento de cambio rápido originado por el Dock
+          else if (action === 'QUICK_PRESET_CHANGE' && data?.activePresetId) {
+            if (setActivePresetId) setActivePresetId(data.activePresetId);
+          }
         }
       });
 
-      // Captura de niveles de volumen en tiempo real
-      if (!isChatOverlay) {
+      // Captura de audio (Sólo Web y Editor Principal)
+      if (!isChatOverlay && !isDockMode) {
         obs.current.on('InputVolumeMeters', (data) => {
           let maxVolume = 0;
           let newMicsFound = false;
@@ -292,10 +328,8 @@ export function useOBS({
           }
           if (setCurrentVolume) setCurrentVolume(maxVolume);
 
-          // Control de animación 'hablando' mediante detección de umbral e histéresis
           if (setIsTalking && sensRef) {
             const turnOnThreshold = sensRef.current + 2.0;
-
             if (maxVolume >= turnOnThreshold) {
               if (talkingTimeoutRef.current) {
                 clearTimeout(talkingTimeoutRef.current);
@@ -315,11 +349,11 @@ export function useOBS({
       }
     } catch (error) {
       setIsConnected(false);
-      if (!isAvatarOverlay && !isChatOverlay) setObsError("Fallo de conexión. Verifica OBS.");
+      if (!isAvatarOverlay && !isChatOverlay && !isDockMode) setObsError("Fallo de conexión. Verifica OBS.");
     } finally {
       isConnecting.current = false; 
     }
   };
 
-  return { isConnected, obsError, connectToOBS, handleLogout };
+  return { isConnected, obsError, connectToOBS, handleLogout, updatePresetGlobal };
 }

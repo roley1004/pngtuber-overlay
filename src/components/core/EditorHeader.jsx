@@ -5,15 +5,19 @@ export function EditorHeader({
   avatarLinkGenerated, chatLinkGenerated,
   twitchInput, isConnected, serverAddress, 
   setServerAddress, password, setPassword, 
-  connectToOBS, handleLogout, obsError
+  connectToOBS, handleLogout, obsError,
+  presets = []
 }) {
   const [isHeaderObsExpanded, setIsHeaderObsExpanded] = useState(false);
   const [showCopiedAlert, setShowCopiedAlert] = useState(false);
 
+  // Sistema de checklist para habilitar el Dock
+  const hasAvatars = presets && presets.length > 0;
+  const isDockReady = hasAvatars;
+
   const handleCopyUrl = () => {
     const link = currentView === 'pngtuber' ? avatarLinkGenerated : chatLinkGenerated;
     
-    // Guardamos el usuario de Twitch en memoria si estamos en el chat
     if (currentView === 'chat') {
       localStorage.setItem('obs-pngtuber-twitch', twitchInput);
     }
@@ -35,13 +39,45 @@ export function EditorHeader({
       </div>
       
       <div className="header-right">
+        {/* 1. Botón Circular de Copiado (OPCIÓN B: Primero en la lista para expandirse a la izquierda) */}
         <div className="url-copy-wrapper" onMouseLeave={() => setShowCopiedAlert(false)}>
-          <button className="btn-link-copy" onClick={handleCopyUrl} title="Copiar URL para OBS">
-            <span className="material-symbols-outlined">link</span>
+          <button 
+            className={`btn-link-copy ${showCopiedAlert ? 'copied' : ''}`} 
+            onClick={handleCopyUrl} 
+          >
+            <span className="copy-text">
+              {showCopiedAlert ? '¡URL Copiada!' : (currentView === 'pngtuber' ? 'Copiar URL de Avatar' : 'Copiar URL de Chat')}
+            </span>
+            <div className="icon-circle">
+              <span className="material-symbols-outlined">link</span>
+            </div>
           </button>
-          {showCopiedAlert && <span className="tooltip-copied">¡URL Copiada!</span>}
         </div>
 
+        {/* 2. Botón Indicador de Estado del Dock para OBS */}
+        <div className="dock-status-wrapper">
+          {isDockReady ? (
+            <button 
+              className="btn-dock-status ready"
+              onClick={() => setCurrentView('dock-simulator')}
+              title="Abrir simulador del Panel de OBS"
+            >
+              <span className="material-symbols-outlined icon">widgets</span>
+              <span>Panel OBS: Listo</span>
+            </button>
+          ) : (
+            <button 
+              className="btn-dock-status pending" 
+              disabled
+              title="Crea al menos 1 modelo de avatar para activar tu Panel de OBS"
+            >
+              <span className="material-symbols-outlined icon">lock</span>
+              <span>Panel OBS: En espera</span>
+            </button>
+          )}
+        </div>
+
+        {/* 3. Panel Compacto de OBS */}
         <div className="compact-obs-widget">
           <div className="compact-obs-header" onClick={() => setIsHeaderObsExpanded(!isHeaderObsExpanded)}>
             <span className={`status-dot ${isConnected ? 'success' : 'error animate-pulse'}`}></span>
