@@ -59,8 +59,7 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
                   placeholder="ej. el_gran_streamer" 
                   disabled={isChannelLocked}
                   style={{ 
-                    backgroundColor: isChannelLocked ? '#e0e0e0' : '#fff', 
-                    color: isChannelLocked ? '#666' : '#000',
+                    opacity: isChannelLocked ? 0.6 : 1,
                     cursor: isChannelLocked ? 'not-allowed' : 'text'
                   }}
                 />
@@ -69,9 +68,15 @@ export function ChatSettings({ twitchInput, setTwitchInput, config, setConfig, d
                   onClick={() => setIsChannelLocked(!isChannelLocked)}
                   title={isChannelLocked ? "Editar Canal" : "Confirmar Canal"}
                   style={{
-                    backgroundColor: isChannelLocked ? '#ff9800' : '#4caf50',
-                    color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    backgroundColor: isChannelLocked ? '#ff9800' : 'var(--primary)',
+                    color: isChannelLocked ? 'white' : '#121814',
+                    border: 'none', 
+                    padding: '6px 12px', 
+                    borderRadius: '4px', 
+                    cursor: 'pointer',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center'
                   }}
                 >
                   {isChannelLocked ? '✏️' : '✔️'}

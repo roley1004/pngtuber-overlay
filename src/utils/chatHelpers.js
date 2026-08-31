@@ -12,6 +12,9 @@ export const DEFAULT_BADGES = {
   bits: { "1": "https://static-cdn.jtvnw.net/badges/v1/73b5c3fb-24f9-4a82-a852-2f475b59411c/3", "1000": "https://static-cdn.jtvnw.net/badges/v1/0d85a29e-79ad-4c63-a285-3acd2c66f2ba/3" }
 };
 
+// Caché en memoria para evitar repetir peticiones HTTP a APIs de emotes de terceros
+const emotesCache = new Map();
+
 // Calcula si el texto debe ser blanco o negro dependiendo de qué tan claro sea el fondo
 export const getContrastColor = (hexColor) => {
   if (!hexColor || typeof hexColor !== 'string') return '#ffffff';
@@ -38,21 +41,31 @@ export const staticDummyMessages = [
 
 // --- FUNCIONES EXTRAÍDAS DE TwitchChat.jsx ---
 
-// Se conecta a las APIs de terceros (7TV, BTTV, FFZ) para descargar los emotes del canal actual
+// Se conecta a las APIs de terceros (7TV, BTTV, FFZ) para descargar los emotes del canal actual utilizando caché local
 export const loadThirdPartyEmotes = async (targetChannel, config) => {
-  const loadedEmotes = {};
-  if (!targetChannel) return loadedEmotes;
+  if (!targetChannel) return {};
   const cleanChannel = targetChannel.replace('#', '').trim().toLowerCase();
+  
+  const bttvActive = config.emotes?.bttv !== false;
+  const ffzActive = config.emotes?.ffz !== false;
+  const seventvActive = config.emotes?.seventv !== false;
+  const cacheKey = `${cleanChannel}_${bttvActive}_${ffzActive}_${seventvActive}`;
+
+  if (emotesCache.has(cacheKey)) {
+    return emotesCache.get(cacheKey);
+  }
+
+  const loadedEmotes = {};
 
   try {
-    if (config.emotes?.bttv !== false) {
+    if (bttvActive) {
       const bttvGlobal = await fetch('https://api.betterttv.net/3/cached/emotes/global').then(r => r.json()).catch(() => []);
       if (Array.isArray(bttvGlobal)) {
         bttvGlobal.forEach(e => { loadedEmotes[e.code] = `https://cdn.betterttv.net/emote/${e.id}/1x`; });
       }
     }
 
-    if (config.emotes?.ffz !== false) {
+    if (ffzActive) {
       const ffzGlobal = await fetch('https://api.frankerfacez.com/v1/set/global').then(r => r.json()).catch(() => null);
       if (ffzGlobal?.sets) {
         Object.values(ffzGlobal.sets).forEach(set => {
@@ -64,7 +77,7 @@ export const loadThirdPartyEmotes = async (targetChannel, config) => {
       }
     }
 
-    if (config.emotes?.seventv !== false) {
+    if (seventvActive) {
       const svnGlobal = await fetch('https://7tv.io/v3/emote-sets/global').then(r => r.json()).catch(() => null);
       if (svnGlobal?.emotes) {
         svnGlobal.emotes.forEach(e => {
@@ -78,7 +91,7 @@ export const loadThirdPartyEmotes = async (targetChannel, config) => {
     const twitchId = idRes.trim();
 
     if (twitchId && !isNaN(twitchId)) {
-      if (config.emotes?.bttv !== false) {
+      if (bttvActive) {
         const bttvChan = await fetch(`https://api.betterttv.net/3/cached/users/twitch/${twitchId}`).then(r => r.json()).catch(() => null);
         if (bttvChan) {
           [...(bttvChan.channelEmotes || []), ...(bttvChan.sharedEmotes || [])].forEach(e => {
@@ -87,7 +100,7 @@ export const loadThirdPartyEmotes = async (targetChannel, config) => {
         }
       }
 
-      if (config.emotes?.seventv !== false) {
+      if (seventvActive) {
         const svnChan = await fetch(`https://7tv.io/v3/users/twitch/${twitchId}`).then(r => r.json()).catch(() => null);
         if (svnChan?.emote_set?.emotes) {
           svnChan.emote_set.emotes.forEach(e => {
@@ -98,7 +111,7 @@ export const loadThirdPartyEmotes = async (targetChannel, config) => {
       }
     }
 
-    if (config.emotes?.ffz !== false) {
+    if (ffzActive) {
       const ffzChan = await fetch(`https://api.frankerfacez.com/v1/room/${cleanChannel}`).then(r => r.json()).catch(() => null);
       if (ffzChan?.sets) {
         Object.values(ffzChan.sets).forEach(set => {
@@ -109,6 +122,8 @@ export const loadThirdPartyEmotes = async (targetChannel, config) => {
         });
       }
     }
+
+    emotesCache.set(cacheKey, loadedEmotes);
   } catch (err) {
     console.error("Error al cargar emotes extra:", err);
   }

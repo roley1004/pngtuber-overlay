@@ -39,7 +39,7 @@ export function PresetCarousel({
                   width: '52px',
                   height: '52px',
                   borderRadius: '50%',
-                  border: isActive ? '3px solid var(--primary)' : '2px solid #e1e3e1',
+                  border: isActive ? '3px solid var(--primary)' : '2px solid var(--border-color)',
                   overflow: 'hidden',
                   background: 'var(--bg-base)',
                   display: 'flex',
@@ -97,8 +97,8 @@ export function PresetCarousel({
           placeholder="Nombre del avatar..."
           style={{
             flex: 1,
-            background: '#FAFBF8',
-            border: '1px solid #e1e3e1',
+            background: 'var(--input-bg)',
+            border: '1px solid var(--border-color)',
             borderRadius: 'var(--radius-input)',
             padding: '8px 12px',
             fontWeight: '700',
@@ -113,7 +113,7 @@ export function PresetCarousel({
           className="btn-tongue-effect"
           style={{
             background: 'var(--surface)',
-            border: '1px solid #e1e3e1',
+            border: '1px solid var(--border-color)',
             borderRadius: 'var(--radius-input)',
             padding: '8px',
             cursor: 'pointer',

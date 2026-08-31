@@ -9,7 +9,8 @@ export const Hub = ({
   serverAddress, setServerAddress,
   obsError,
   handleLogout,
-  presets = [] // Recibe los presets para validar si el Dock está listo
+  presets = [], // Recibe los presets para validar si el Dock está listo
+  theme, toggleTheme
 }) => {
   const [isExpanded, setIsExpanded] = useState(!isConnected);
   
@@ -59,6 +60,28 @@ export const Hub = ({
             <img src="/yoshi-egg.png" alt="Yoshi Egg Logo" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
             <span className="logo-text">YoshiTools</span>
           </div>
+
+          {/* Botón conmutador para alternar entre tema Claro y Oscuro */}
+          <button 
+            className="icon-btn theme-toggle-btn" 
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            style={{ 
+              background: 'var(--surface)', 
+              border: '2px solid var(--border-color)', 
+              borderRadius: 'var(--radius-input)', 
+              padding: '8px', 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: 'var(--text-main)'
+            }}
+          >
+            <span className="material-symbols-outlined">
+              {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+            </span>
+          </button>
         </div>
       </header>
       

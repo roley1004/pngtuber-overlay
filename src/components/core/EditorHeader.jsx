@@ -6,7 +6,8 @@ export function EditorHeader({
   twitchInput, isConnected, serverAddress, 
   setServerAddress, password, setPassword, 
   connectToOBS, handleLogout, obsError,
-  presets = []
+  presets = [],
+  theme, toggleTheme
 }) {
   const [isHeaderObsExpanded, setIsHeaderObsExpanded] = useState(false);
   const [showCopiedAlert, setShowCopiedAlert] = useState(false);
@@ -39,7 +40,18 @@ export function EditorHeader({
       </div>
       
       <div className="header-right">
-        {/* 1. Botón Circular de Copiado (OPCIÓN B: Primero en la lista para expandirse a la izquierda) */}
+        {/* Botón conmutador para alternar entre tema Claro y Oscuro */}
+        <button 
+          className="icon-btn theme-toggle-btn" 
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        >
+          <span className="material-symbols-outlined">
+            {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+          </span>
+        </button>
+
+        {/* 1. Botón Circular de Copiado (Expandible a la izquierda) */}
         <div className="url-copy-wrapper" onMouseLeave={() => setShowCopiedAlert(false)}>
           <button 
             className={`btn-link-copy ${showCopiedAlert ? 'copied' : ''}`} 

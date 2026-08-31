@@ -91,20 +91,26 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     return presets.find(p => p.id === activePresetId) || presets[0] || null;
   }, [presets, activePresetId]);
 
-  // Función central para modificar cualquier propiedad del avatar activo y guardarlo en IndexedDB
+  // Debounce para guardar los cambios del avatar activo en IndexedDB evitando saturar la base de datos
+  useEffect(() => {
+    if (isAvatarOverlay || !activePreset) return;
+
+    const timer = setTimeout(() => {
+      savePresetToDB(activePreset);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [activePreset, isAvatarOverlay]);
+
+  // Función central para modificar cualquier propiedad del avatar activo en el estado local
   const updateActivePreset = (updater) => {
     setPresets(prevPresets => {
-      const newPresets = prevPresets.map(p => {
+      return prevPresets.map(p => {
         if (p.id === activePresetId) {
           return typeof updater === 'function' ? updater(p) : { ...p, ...updater };
         }
         return p;
       });
-      const updatedActive = newPresets.find(p => p.id === activePresetId);
-      if (updatedActive && !isAvatarOverlay) {
-        savePresetToDB(updatedActive);
-      }
-      return newPresets;
     });
   };
 
@@ -147,17 +153,34 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
     updateActivePreset(p => ({ ...p, imagenes: value }));
   };
 
-  // Guarda los cambios del micrófono y sliders en LocalStorage
-  useEffect(() => { micRef.current = selectedMic; localStorage.setItem('obs-pngtuber-mic', selectedMic); }, [selectedMic]);
-  useEffect(() => { sensRef.current = sensitivity; localStorage.setItem('obs-pngtuber-sens', sensitivity); }, [sensitivity]);
-  useEffect(() => { localStorage.setItem('obs-pngtuber-blink-freq', blinkFrequency); }, [blinkFrequency]);
-  useEffect(() => { localStorage.setItem('obs-pngtuber-random-blink', isRandomBlink); }, [isRandomBlink]);
+  // Actualización de referencias inmediatas y guardado diferido en LocalStorage
+  useEffect(() => {
+    micRef.current = selectedMic;
+    localStorage.setItem('obs-pngtuber-mic', selectedMic);
+  }, [selectedMic]);
+
+  useEffect(() => {
+    sensRef.current = sensitivity;
+    const timer = setTimeout(() => {
+      localStorage.setItem('obs-pngtuber-sens', sensitivity);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [sensitivity]);
+
+  useEffect(() => {
+    localStorage.setItem('obs-pngtuber-blink-freq', blinkFrequency);
+  }, [blinkFrequency]);
+
+  useEffect(() => {
+    localStorage.setItem('obs-pngtuber-random-blink', isRandomBlink);
+  }, [isRandomBlink]);
 
   // Temporizador responsable de activar el parpadeo aleatorio o constante
   useEffect(() => {
     let timeoutId;
     const scheduleBlink = () => {
-      setIsBlinking(true); setTimeout(() => setIsBlinking(false), 150);
+      setIsBlinking(true); 
+      setTimeout(() => setIsBlinking(false), 150);
       const nextDelay = isRandomBlink ? (Math.random() * 4 + 2) * 1000 : blinkFrequency * 1000;
       timeoutId = setTimeout(scheduleBlink, nextDelay);
     };
@@ -226,27 +249,17 @@ export function usePNGTuber({ isAvatarOverlay, isTalking, isSimulating }) {
 
   // Renombra un avatar en la lista
   const updatePresetName = (id, newName) => {
-    setPresets(prev => {
-      const updated = prev.map(p => p.id === id ? { ...p, nombre: newName } : p);
-      const target = updated.find(p => p.id === id);
-      if (target && !isAvatarOverlay) savePresetToDB(target);
-      return updated;
-    });
+    setPresets(prev => prev.map(p => p.id === id ? { ...p, nombre: newName } : p));
   };
 
   // Modifica el comando de Twitch o activadores del avatar
   const updatePresetTrigger = (id, field, value) => {
-    setPresets(prev => {
-      const updated = prev.map(p => {
-        if (p.id === id) {
-          return { ...p, disparadores: { ...p.disparadores, [field]: value } };
-        }
-        return p;
-      });
-      const target = updated.find(p => p.id === id);
-      if (target && !isAvatarOverlay) savePresetToDB(target);
-      return updated;
-    });
+    setPresets(prev => prev.map(p => {
+      if (p.id === id) {
+        return { ...p, disparadores: { ...p.disparadores, [field]: value } };
+      }
+      return p;
+    }));
   };
 
   // Calcula qué estado del PNGTuber se debe mostrar (reposo, hablar, parpadeo o ambos)

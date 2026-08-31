@@ -15,6 +15,20 @@ import { encodeOBSConfig, decodeOBSConfig } from './utils/urlHelpers';
 import './App.css';
 
 function App() {
+  // Manejo del tema global (Claro/Oscuro) con persistencia en LocalStorage
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('pngtuber-app-theme') || 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('pngtuber-app-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const urlParams = new URLSearchParams(window.location.search);
   const encodedAvatar = urlParams.get('avatar');
   const isAvatarOverlay = Boolean(encodedAvatar);
@@ -211,6 +225,7 @@ function App() {
           setCurrentView={navigateTo} isConnected={isConnected} serverAddress={serverAddress} 
           setServerAddress={setServerAddress} password={password} setPassword={setPassword} 
           connectToOBS={connectToOBS} obsError={obsError} handleLogout={handleLogout} presets={presets}
+          theme={theme} toggleTheme={toggleTheme}
         />
         <div style={{ display: 'none' }}>
           {memoizedTwitchChat}
@@ -234,7 +249,7 @@ function App() {
         chatLinkGenerated={chatLinkGenerated} twitchInput={twitchInput} isConnected={isConnected} 
         serverAddress={serverAddress} setServerAddress={setServerAddress} password={password} 
         setPassword={setPassword} connectToOBS={connectToOBS} handleLogout={handleLogout} obsError={obsError}
-        presets={presets}
+        presets={presets} theme={theme} toggleTheme={toggleTheme}
       />
 
       <div className="editor-body">
